@@ -4,47 +4,55 @@ import MapKit
 struct MainView: View {
     @EnvironmentObject var locationService: BackgroundLocationService
     
+    @State private var selection = 0
+    
     var body: some View {
         ZStack(alignment: .top) {
             // Main Content (Map/Tabs)
-            TabView {
+            TabView(selection: $selection) {
                 MapView()
                     .tabItem {
                         Label("Map", systemImage: "map")
                     }
+                    .tag(0)
                 
                 LogsView()
                     .tabItem {
                         Label("Logs", systemImage: "list.bullet")
                     }
+                    .tag(1)
                 
                 HistoryView()
                     .tabItem {
                         Label("History", systemImage: "clock")
                     }
+                    .tag(2)
                 
                 SettingsView()
                     .tabItem {
                         Label("Settings", systemImage: "gear")
                     }
+                    .tag(3)
             }
             .accentColor(.purple)
             .edgesIgnoringSafeArea(.top) // Allow map to go under status bar/header
             
-            // Custom Top Bar (Floating Overlay)
-            HStack {
-                Image(systemName: "location.north.fill")
-                    .foregroundColor(.purple)
-                Text("Fletcher")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                Spacer()
+            // Custom Top Bar (Floating Overlay) - Only show on Map (Tag 0)
+            if selection == 0 {
+                HStack {
+                    Image(systemName: "location.north.fill")
+                        .foregroundColor(.purple)
+                    Text("Fletcher")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding()
+                .padding(.top, 44) // Status bar spacing
+                .background(Color.white.opacity(0.01))
+                .allowsHitTesting(false)
             }
-            .padding()
-            .padding(.top, 44) // Status bar spacing
-            .background(Color.white.opacity(0.01))
-            .allowsHitTesting(false)
         }
     }
 }

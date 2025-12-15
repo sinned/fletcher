@@ -40,7 +40,7 @@ The system consists of two main components:
     -   **App Icon**: Custom "Arrow Maker" themed icon (Arrow on Blue/Purple gradient).
     -   **Icons**: Consistent use of `location.north.fill` (arrow) throughout the app.
 -   **Splash Screen**:
-    -   Simplified solid blue background with white arrow icon and text for reliability.
+    -   **Visuals**: Vibrant Blue-to-Purple gradient background with white arrow icon.
     -   Auto-transition to Main View after 2 seconds.
 -   **Main View (ZStack)**:
     -   **Layout**: `ZStack` allows the Map to span the full screen, including under the header.

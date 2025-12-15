@@ -10,7 +10,8 @@ struct SplashScreen: View {
             MainView()
         } else {
             ZStack {
-                Color.blue.edgesIgnoringSafeArea(.all) // Solid color fallback
+                LinearGradient(gradient: Gradient(colors: [Color.blue, Color.purple]), startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .edgesIgnoringSafeArea(.all)
                 
                 VStack {
                     Image(systemName: "location.north.fill")
