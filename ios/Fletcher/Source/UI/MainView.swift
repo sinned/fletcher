@@ -5,23 +5,48 @@ struct MainView: View {
     @EnvironmentObject var locationService: BackgroundLocationService
     
     var body: some View {
-        TabView {
-            MapView()
-                .tabItem {
-                    Label("Map", systemImage: "map")
-                }
+        VStack(spacing: 0) {
+            // Custom Top Bar
+            HStack {
+                Image(systemName: "paperplane.fill")
+                    .foregroundColor(.white)
+                Text("Fletcher")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            .padding()
+            .padding(.top, 44) // Status bar spacing
+            .background(
+                LinearGradient(gradient: Gradient(colors: [Color.blue, Color.purple]), startPoint: .leading, endPoint: .trailing)
+                    .edgesIgnoringSafeArea(.top)
+            )
             
-            LogsView()
-                .tabItem {
-                    Label("Logs", systemImage: "list.bullet")
-                }
-            
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
+            TabView {
+                MapView()
+                    .tabItem {
+                        Label("Map", systemImage: "map")
+                    }
+                
+                LogsView()
+                    .tabItem {
+                        Label("Logs", systemImage: "list.bullet")
+                    }
+                
+                HistoryView()
+                    .tabItem {
+                        Label("History", systemImage: "clock")
+                    }
+                
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gear")
+                    }
+            }
+            .accentColor(.purple)
         }
-        .accentColor(.purple)
+        .edgesIgnoringSafeArea(.top)
     }
 }
 

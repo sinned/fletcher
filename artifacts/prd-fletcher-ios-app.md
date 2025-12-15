@@ -40,12 +40,16 @@ The system consists of two main components:
     -   Animated gradient background (Blue/Purple).
     -   "Fletcher" branding with Paperplane icon.
     -   Auto-transition to Main View after 2 seconds.
--   **Main View (TabView)**:
+-   **Main View (VStack + TabView)**:
+    -   **Top Menu Bar**: Custom header with "Fletcher" branding and gradient background, persistent across all tabs.
     -   **Map Tab**: Full-screen `MapKit` view.
         -   **Live Tracking**: Automatically centers on user location.
         -   **Interactivity**: "Re-center" button to resume tracking mode.
-    -   **Logs Tab**: Debug view to see raw location data points (implied).
-    -   **Settings Tab**: Configuration options (implied).
+    -   **Logs Tab**: Debug view to see raw location data points.
+    -   **History Tab**: List view of stored location points.
+        -   **Functionality**: Swipe-to-delete support.
+        -   **Visuals**: Displays timestamp, lat/lon, and sync status.
+    -   **Settings Tab**: Configuration options.
 
 ## 4. Specific Implementation Details
 
