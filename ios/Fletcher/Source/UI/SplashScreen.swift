@@ -10,33 +10,35 @@ struct SplashScreen: View {
             MainView()
         } else {
             ZStack {
-                LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.purple.opacity(0.8)]), startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .edgesIgnoringSafeArea(.all)
+                Color.blue.edgesIgnoringSafeArea(.all) // Solid color fallback
                 
                 VStack {
-                    VStack {
-                        Image(systemName: "paperplane.fill")
-                            .font(.system(size: 80))
-                            .foregroundColor(.white)
-                        
-                        Text("Fletcher")
-                            .font(Font.custom("Avenir-Heavy", size: 40))
-                            .foregroundColor(.white.opacity(0.80))
-                    }
-                    .scaleEffect(size)
-                    .opacity(opacity)
-                    .onAppear {
-                        withAnimation(.easeIn(duration: 1.2)) {
-                            self.size = 0.9
-                            self.opacity = 1.0
-                        }
+                    Image(systemName: "paperplane.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 100, height: 100)
+                        .foregroundColor(.white)
+                    
+                    Text("Fletcher")
+                        .font(.largeTitle)
+                        .fontWeight(.heavy)
+                        .foregroundColor(.white)
+                }
+                .scaleEffect(size)
+                .opacity(opacity)
+                .onAppear {
+                    print("DEBUG: Splash Screen Appeared")
+                    withAnimation(.easeIn(duration: 1.2)) {
+                        self.size = 0.9
+                        self.opacity = 1.0
                     }
                 }
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        withAnimation {
-                            self.isActive = true
-                        }
+            }
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    print("DEBUG: Transitioning to MainView")
+                    withAnimation {
+                        self.isActive = true
                     }
                 }
             }
