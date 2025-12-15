@@ -3,7 +3,12 @@ import Foundation
 class APIClient {
     static let shared = APIClient()
     
-    private let baseURL = URL(string: "http://localhost:3000/api")! // Configurable
+    private var baseURL: URL {
+        let defaultURL = URL(string: "http://localhost:3000/api")!
+        let stored = UserDefaults.standard.string(forKey: "serverURL") ?? "http://localhost:3000"
+        let clean = stored.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: "\(clean)/api") ?? defaultURL
+    }
     
     func syncLocations() {
         let unsynced = LocationStore.shared.getUnsynced()

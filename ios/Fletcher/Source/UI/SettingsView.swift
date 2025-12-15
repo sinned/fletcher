@@ -1,12 +1,20 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage("serverURL") private var serverURL: String = "http://localhost:3000"
     @State private var precision: Double = 1.0
     @State private var retentionDays: Int = 30
     
     var body: some View {
         NavigationView {
             Form {
+                Section(header: Text("Server")) {
+                    TextField("Server URL", text: $serverURL)
+                        .textContentType(.URL)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                }
+                
                 Section(header: Text("Privacy")) {
                     VStack(alignment: .leading) {
                         Text("Location Precision")

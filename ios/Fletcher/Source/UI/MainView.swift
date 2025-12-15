@@ -5,24 +5,8 @@ struct MainView: View {
     @EnvironmentObject var locationService: BackgroundLocationService
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Custom Top Bar
-            HStack {
-                Image(systemName: "paperplane.fill")
-                    .foregroundColor(.white)
-                Text("Fletcher")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                Spacer()
-            }
-            .padding()
-            .padding(.top, 44) // Status bar spacing
-            .background(
-                LinearGradient(gradient: Gradient(colors: [Color.blue, Color.purple]), startPoint: .leading, endPoint: .trailing)
-                    .edgesIgnoringSafeArea(.top)
-            )
-            
+        ZStack(alignment: .top) {
+            // Main Content (Map/Tabs)
             TabView {
                 MapView()
                     .tabItem {
@@ -45,8 +29,23 @@ struct MainView: View {
                     }
             }
             .accentColor(.purple)
+            .edgesIgnoringSafeArea(.top) // Allow map to go under status bar/header
+            
+            // Custom Top Bar (Floating Overlay)
+            HStack {
+                Image(systemName: "location.north.fill")
+                    .foregroundColor(.purple)
+                Text("Fletcher")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            .padding()
+            .padding(.top, 44) // Status bar spacing
+            .background(Color.white.opacity(0.01))
+            .allowsHitTesting(false)
         }
-        .edgesIgnoringSafeArea(.top)
     }
 }
 
@@ -60,27 +59,40 @@ struct MapView: View {
     )
     
     @State private var trackingMode: MapUserTrackingMode = .follow
+    @State private var showPulse = false
     
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            Map(coordinateRegion: $region,
-                showsUserLocation: true,
-                userTrackingMode: $trackingMode)
-                .edgesIgnoringSafeArea(.top)
-                .onReceive(locationService.$currentLocation) { loc in
-                    if let loc = loc {
-                        // Smoothly animate to new location
-                        withAnimation {
-                            region.center = CLLocationCoordinate2D(
-                                latitude: loc.latitude,
-                                longitude: loc.longitude
-                            )
+            ZStack {
+                Map(coordinateRegion: $region,
+                    showsUserLocation: true,
+                    userTrackingMode: $trackingMode)
+                    .edgesIgnoringSafeArea(.top)
+                
+                if showPulse {
+                    Circle()
+                        .stroke(Color.purple, lineWidth: 2)
+                        .frame(width: 20, height: 20)
+                        .scaleEffect(4) // Scale up 4x
+                        .opacity(0)     // Fade out
+                        .onAppear {
+                            // Reset state after animation
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                self.showPulse = false
+                            }
                         }
-                    }
                 }
+            }
             
             Button(action: {
                 trackingMode = .follow
+                locationService.manuallyLogLocation() // Log entry on tap
+                
+                // Trigger Pulse
+                withAnimation(.easeOut(duration: 0.8)) {
+                    showPulse = true
+                }
+                
                 if let loc = locationService.currentLocation {
                     withAnimation {
                         region.center = CLLocationCoordinate2D(

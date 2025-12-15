@@ -36,20 +36,22 @@ The system consists of two main components:
 -   **Configuration**: Defaults to `localhost:3000` (configurable for device testing).
 
 ### 3.4 User Interface (UI)
+-   **Assets**:
+    -   **App Icon**: Custom "Arrow Maker" themed icon (Arrow on Blue/Purple gradient).
+    -   **Icons**: Consistent use of `location.north.fill` (arrow) throughout the app.
 -   **Splash Screen**:
-    -   Animated gradient background (Blue/Purple).
-    -   "Fletcher" branding with Paperplane icon.
+    -   Simplified solid blue background with white arrow icon and text for reliability.
     -   Auto-transition to Main View after 2 seconds.
--   **Main View (VStack + TabView)**:
-    -   **Top Menu Bar**: Custom header with "Fletcher" branding and gradient background, persistent across all tabs.
+-   **Main View (ZStack)**:
+    -   **Layout**: `ZStack` allows the Map to span the full screen, including under the header.
+    -   **Top Menu Bar**: Transparent floating header with "Fletcher" branding. Allows map interaction underneath.
     -   **Map Tab**: Full-screen `MapKit` view.
         -   **Live Tracking**: Automatically centers on user location.
-        -   **Interactivity**: "Re-center" button to resume tracking mode.
-    -   **Logs Tab**: Debug view to see raw location data points.
-    -   **History Tab**: List view of stored location points.
-        -   **Functionality**: Swipe-to-delete support.
-        -   **Visuals**: Displays timestamp, lat/lon, and sync status.
-    -   **Settings Tab**: Configuration options.
+        -   **Manual Logging**: "Re-center" button adds a manual history entry with a "Bullseye" pulse animation for feedback.
+-   **History Tab**: List view of stored location points with swipe-to-delete.
+-   **Settings Tab**:
+    -   **Server Configuration**: Configurable Server URL (saved in `UserDefaults`).
+    -   **Privacy**: Precision and retention controls.
 
 ## 4. Specific Implementation Details
 

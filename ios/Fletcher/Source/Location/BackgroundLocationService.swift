@@ -28,6 +28,20 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
         locationManager.startMonitoringSignificantLocationChanges()
     }
     
+    func manuallyLogLocation() {
+        guard let current = currentLocation else { return }
+        
+        let newPoint = LocationPoint(
+            latitude: current.latitude,
+            longitude: current.longitude,
+            accuracy: current.accuracy,
+            timestamp: Date()
+        )
+        
+        store.addLocation(newPoint)
+        api.syncLocations()
+    }
+    
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse {

@@ -13,7 +13,7 @@ struct SplashScreen: View {
                 Color.blue.edgesIgnoringSafeArea(.all) // Solid color fallback
                 
                 VStack {
-                    Image(systemName: "paperplane.fill")
+                    Image(systemName: "location.north.fill")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 100, height: 100)
@@ -27,7 +27,6 @@ struct SplashScreen: View {
                 .scaleEffect(size)
                 .opacity(opacity)
                 .onAppear {
-                    print("DEBUG: Splash Screen Appeared")
                     withAnimation(.easeIn(duration: 1.2)) {
                         self.size = 0.9
                         self.opacity = 1.0
@@ -36,7 +35,6 @@ struct SplashScreen: View {
             }
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    print("DEBUG: Transitioning to MainView")
                     withAnimation {
                         self.isActive = true
                     }
