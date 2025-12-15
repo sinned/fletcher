@@ -1,0 +1,19 @@
+# System
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Node
+node_modules/
+npm-debug.log
+
+# Server
+server/dist/
+server/.env
+server/coverage/
+
+# Xcode (if any project files eventually end up here)
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
