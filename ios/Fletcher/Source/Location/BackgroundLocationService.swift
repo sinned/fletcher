@@ -6,6 +6,7 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
     private let locationManager = CLLocationManager()
     @Published var currentLocation: LocationPoint?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    @Published var isTracking: Bool = false
     
     private let store = LocationStore.shared
     private let api = APIClient.shared
@@ -26,6 +27,12 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
     
     func startTracking() {
         locationManager.startMonitoringSignificantLocationChanges()
+        isTracking = true
+    }
+    
+    func stopTracking() {
+        locationManager.stopMonitoringSignificantLocationChanges()
+        isTracking = false
     }
     
     func manuallyLogLocation() {

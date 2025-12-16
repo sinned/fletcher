@@ -47,6 +47,19 @@ struct MainView: View {
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
                     Spacer()
+                    
+                    Toggle("", isOn: Binding(
+                        get: { locationService.isTracking },
+                        set: { isTracking in
+                            if isTracking {
+                                locationService.startTracking()
+                            } else {
+                                locationService.stopTracking()
+                            }
+                        }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(SwitchToggleStyle(tint: .purple))
                 }
                 .padding()
                 .padding(.top, 44) // Status bar spacing

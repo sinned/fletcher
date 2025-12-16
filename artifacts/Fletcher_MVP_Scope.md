@@ -2,7 +2,7 @@
 
 **Version:** 1.0 MVP  
 **Target Launch:** 90 days from kickoff  
-**Last Updated:** December 2025
+**Last Updated:** December 15, 2025
 
 ## Executive Summary
 
@@ -372,11 +372,12 @@ Based on user's precision setting:
 
 ### Main App Interface
 
-**Map View (Primary):**
+**Main App Interface:**
 - Live map showing current location
 - Last 24 hours location trail (faded)
 - Battery impact indicator
-- Active/paused status toggle
+- **Active/paused status toggle (Manual override)**
+- **History View**: Toggle between list and map view of location history
 
 **Settings View:**
 - Precision level slider
