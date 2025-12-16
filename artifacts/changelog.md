@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.3] - 2025-12-16
+
+### Added
+- **Server**: Root route now returns user and location counts.
+- **Server**: Health check verifies database connectivity.
+
 ## [1.2.2] - 2025-12-16
 
 ### Changed

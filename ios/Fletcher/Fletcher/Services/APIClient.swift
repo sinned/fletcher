@@ -1,7 +1,12 @@
 import Foundation
+import Combine
 
-class APIClient {
+class APIClient: ObservableObject {
     static let shared = APIClient()
+    
+    @Published var isSyncing = false
+    @Published var lastSyncAttempt: Date?
+    @Published var lastSyncError: String?
     
     private var baseURL: URL {
         let defaultURL = URL(string: "https://fletcher-server.onrender.com/api")!
@@ -13,6 +18,11 @@ class APIClient {
     func syncLocations() {
         let unsynced = LocationStore.shared.getUnsynced()
         guard !unsynced.isEmpty else { return }
+        
+        DispatchQueue.main.async {
+            self.isSyncing = true
+            self.lastSyncError = nil
+        }
         
         let url = baseURL.appendingPathComponent("locations")
         var request = URLRequest(url: url)
@@ -26,12 +36,22 @@ class APIClient {
             request.httpBody = try JSONEncoder().encode(body)
         } catch {
             print("Encoding error: \(error)")
+            DispatchQueue.main.async {
+                self.isSyncing = false
+                self.lastSyncError = "Encoding error"
+            }
             return
         }
         
         URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                self.isSyncing = false
+                self.lastSyncAttempt = Date()
+            }
+            
             if let error = error {
                 print("Sync failed: \(error)")
+                DispatchQueue.main.async { self.lastSyncError = error.localizedDescription }
                 return
             }
             
@@ -44,6 +64,7 @@ class APIClient {
                 print("Synced \(ids.count) locations")
             } else {
                 print("Sync server error: \(String(describing: response))")
+                DispatchQueue.main.async { self.lastSyncError = "Server Error: \(String(describing: response))" }
             }
         }.resume()
     }
@@ -165,5 +186,22 @@ class APIClient {
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
+    }
+    func checkHealth() async -> Bool {
+        guard let url = URL(string: baseURL.absoluteString.replacingOccurrences(of: "/api", with: "/health")) else { return false }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 5 // Short timeout for UI checks
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                return true
+            }
+        } catch {
+            return false
+        }
+        return false
     }
 }

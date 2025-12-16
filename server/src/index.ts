@@ -1,7 +1,7 @@
 import fastify from 'fastify';
 import dotenv from 'dotenv';
 import { z } from 'zod';
-import { initDb } from './db';
+import { initDb, query } from './db';
 
 dotenv.config();
 
@@ -24,7 +24,32 @@ setupMcp(server);
 
 // Health check
 server.get('/health', async (request, reply) => {
-    return { status: 'ok' };
+    try {
+        await query('SELECT 1');
+        return { status: 'ok', db: 'connected' };
+    } catch (e) {
+        server.log.error(e);
+        reply.code(500);
+        return { status: 'error', db: 'disconnected' };
+    }
+});
+
+// Root route - stats
+server.get('/', async (request, reply) => {
+    try {
+        const usersRes = await query('SELECT COUNT(*) as count FROM users');
+        const locationsRes = await query('SELECT COUNT(*) as count FROM locations');
+
+        return {
+            status: 'ok',
+            users: parseInt(usersRes.rows[0].count),
+            locations: parseInt(locationsRes.rows[0].count)
+        };
+    } catch (e) {
+        server.log.error(e);
+        reply.code(500);
+        return { status: 'error', message: 'Could not fetch stats' };
+    }
 });
 
 const start = async () => {

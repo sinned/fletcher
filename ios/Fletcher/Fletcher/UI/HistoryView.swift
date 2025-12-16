@@ -3,6 +3,13 @@ import SwiftUI
 struct HistoryView: View {
     @EnvironmentObject var locationStore: LocationStore
     @State private var viewMode: ViewMode = .list
+    @State private var showSyncStatus = false
+    @State private var serverStatus: ServerStatus = .checking
+    @State private var unsyncedCount: Int = 0
+    
+    enum ServerStatus {
+        case checking, online, offline
+    }
     
     enum ViewMode {
         case list, map
@@ -16,7 +23,57 @@ struct HistoryView: View {
                     Text("Map").tag(ViewMode.map)
                 }
                 .pickerStyle(SegmentedPickerStyle())
-                .padding()
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
+                
+                // Server Status & Sync
+                Button(action: { showSyncStatus = true }) {
+                    HStack {
+                        if serverStatus == .checking {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Circle()
+                                .fill(serverStatus == .online ? Color.green : Color.red)
+                                .frame(width: 8, height: 8)
+                        }
+                        
+                        Text(serverStatusText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        if unsyncedCount > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                Text("Sync \(unsyncedCount)")
+                            }
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(12)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .sheet(isPresented: $showSyncStatus) {
+                    SyncStatusView()
+                        .environmentObject(locationStore)
+                }
+                .task {
+                    await checkServer()
+                }
+                .onAppear {
+                    refreshUnsynced()
+                }
                 
                 if viewMode == .list {
                     List {
@@ -51,6 +108,32 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle("Location History")
+        }
+    }
+    
+    var serverStatusText: String {
+        switch serverStatus {
+        case .checking: return "Checking..."
+        case .online: return "Server Online"
+        case .offline: return "Server Offline"
+        }
+    }
+    
+    private func checkServer() async {
+        serverStatus = .checking
+        let isAlive = await APIClient.shared.checkHealth()
+        serverStatus = isAlive ? .online : .offline
+    }
+    
+    private func refreshUnsynced() {
+        unsyncedCount = LocationStore.shared.getUnsynced().count
+    }
+    
+    private func syncNow() {
+        APIClient.shared.syncLocations()
+        // Optimistic / Polling update
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            refreshUnsynced()
         }
     }
 }
