@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("serverURL") private var serverURL: String = "http://localhost:3000"
+
     @State private var precision: Double = 1.0
     @State private var retentionDays: Int = 30
     @State private var showDeleteConfirmation = false
@@ -9,13 +9,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Server")) {
-                    TextField("Server URL", text: $serverURL)
-                        .textContentType(.URL)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                }
-                
+
                 Section(header: Text("Privacy")) {
                     VStack(alignment: .leading) {
                         Text("Location Precision")
@@ -35,7 +29,7 @@ struct SettingsView: View {
                 
                 Section(header: Text("Assistants")) {
                     NavigationLink("Manage Connections") {
-                        Text("Coming Soon")
+                        MCPConnectionView()
                     }
                 }
                 
@@ -56,7 +50,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Text("Fletcher v0.1.4")
+                        Text("Fletcher v1.2.1")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                         Spacer()

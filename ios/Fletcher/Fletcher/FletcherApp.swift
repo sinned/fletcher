@@ -10,6 +10,9 @@ struct FletcherApp: App {
             SplashScreen()
                 .environmentObject(locationStore)
                 .environmentObject(locationService)
+                .task {
+                    await APIClient.shared.registerDevice()
+                }
                 .onAppear {
                     locationService.requestPermissions()
                 }

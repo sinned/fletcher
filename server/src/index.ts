@@ -12,14 +12,14 @@ const server = fastify({
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 import mobileRoutes from './routes/mobile';
-import authRoutes from './routes/auth';
+import mcpApiRoutes from './routes/mcp_api';
 import { setupMcp } from './mcp';
 
 // ... imports
 
 server.register(mobileRoutes, { prefix: '/api' });
-server.register(authRoutes, { prefix: '/auth' });
-server.register(require('@fastify/formbody')); // Support form data for OAuth
+server.register(mcpApiRoutes, { prefix: '/api/mcp' }); // Mounted at /api/mcp
+server.register(require('@fastify/formbody'));
 setupMcp(server);
 
 // Health check

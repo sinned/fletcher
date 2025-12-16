@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.2.1] - 2025-12-16
+
+### Changed
+- **UI**: Generalised "Claude" to "Assistant" in MCP Connection screens.
+- **UI**: Moved Server URL configuration to the Manage Connections screen.
+
+## [1.2.0] - 2025-12-16
+
+### Added
+- **App**: MCP Token Support.
+- **App**: New `MCPConnectionView` to generate and manage connection tokens.
+- **App**: Automatic Device Registration on launch.
+- **App**: Setting to manage Assistant Connections.
+
 ## [1.1.0] - 2025-12-16
 
 ### Added

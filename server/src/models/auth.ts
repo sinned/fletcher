@@ -1,42 +1,28 @@
 import { query } from '../db';
-import { generateMCPToken, generateAuthCode } from '../utils/crypto';
+import { generateMCPToken } from '../utils/crypto';
 
-export const createAuthCode = async (userId: string, clientId: string, redirectUri: string) => {
-    const code = generateAuthCode();
-    await query(
-        `INSERT INTO oauth_codes (code, user_id, client_id, redirect_uri)
-         VALUES ($1, $2, $3, $4)`,
-        [code, userId, clientId, redirectUri]
-    );
-    return code;
-};
-
-export const validateAuthCode = async (code: string, clientId: string) => {
-    const res = await query(
-        `UPDATE oauth_codes 
-         SET used_at = NOW() 
-         WHERE code = $1 AND client_id = $2 AND used_at IS NULL
-           AND created_at > NOW() - INTERVAL '10 minutes'
-         RETURNING user_id`,
-        [code, clientId]
-    );
-    if (res.rows.length > 0) {
-        return res.rows[0].user_id;
-    }
-    return null;
-};
-
-export const createMCPToken = async (userId: string, assistantType: string) => {
+export const createMCPToken = async (userId: string, assistantType: string, tokenName?: string) => {
     const token = generateMCPToken();
     const expiresAt = new Date();
     expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 year expiry
 
+    // We allow multiple tokens per user/assistant now? TDD v2.1 says "User can have multiple tokens".
+    // Schema says PK is UUID, UNIQUE constraint on mcp_token only.
+    // Previous schema had UNIQUE(user_id, assistant_type). v2.1 TDD removed that uniqueness constraint in text ("List all MCP tokens").
+
+    // Note: Schema in TDD has `id UUID PK`. My previous unique constraint might block multiple tokens.
+    // Let's check schema.sql I just wrote. It has `UNIQUE(user_id, assistant_type)`? 
+    // Wait, in my previous schema write I kept `id` but I didn't see the unique constraint in the TDD block.
+    // Let's assume multiple tokens are allowed.
+
+    // Actually, looking at my schema.sql write just now:
+    // `CREATE INDEX ... idx_assistant_user ON assistant_connections(user_id, assistant_type);`
+    // I did NOT put a UNIQUE constraint on (user_id, assistant_type) in schema.sql. Good.
+
     await query(
-        `INSERT INTO assistant_connections (user_id, assistant_type, oauth_token, expires_at)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, assistant_type) 
-         DO UPDATE SET oauth_token = $3, expires_at = $4, revoked_at = NULL, connected_at = NOW()`,
-        [userId, assistantType, token, expiresAt]
+        `INSERT INTO assistant_connections (user_id, assistant_type, mcp_token, token_name, expires_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, assistantType, token, tokenName || 'Default', expiresAt]
     );
 
     return { token, expiresAt };
@@ -44,8 +30,8 @@ export const createMCPToken = async (userId: string, assistantType: string) => {
 
 export const validateMCPToken = async (token: string) => {
     const res = await query(
-        `SELECT user_id FROM assistant_connections 
-         WHERE oauth_token = $1 
+        `SELECT user_id, id FROM assistant_connections 
+         WHERE mcp_token = $1 
            AND revoked_at IS NULL 
            AND expires_at > NOW()`,
         [token]
@@ -53,8 +39,33 @@ export const validateMCPToken = async (token: string) => {
 
     if (res.rows.length > 0) {
         // Async update last_used
-        query(`UPDATE assistant_connections SET last_used_at = NOW() WHERE oauth_token = $1`, [token]).catch(console.error);
+        query(`UPDATE assistant_connections SET last_used_at = NOW() WHERE mcp_token = $1`, [token]).catch(console.error);
         return res.rows[0].user_id;
     }
     return null;
+};
+
+export const listMCPTokens = async (userId: string) => {
+    const res = await query(
+        `SELECT id, assistant_type, token_name, connected_at, last_used_at, expires_at, mcp_token 
+         FROM assistant_connections 
+         WHERE user_id = $1 AND revoked_at IS NULL
+         ORDER BY connected_at DESC`,
+        [userId]
+    );
+    return res.rows.map(row => ({
+        ...row,
+        token_preview: row.mcp_token.substring(0, 8) + '...' + row.mcp_token.slice(-4),
+        mcp_token: undefined // Don't return full token
+    }));
+};
+
+export const revokeMCPToken = async (userId: string, tokenId: string) => {
+    const res = await query(
+        `UPDATE assistant_connections 
+         SET revoked_at = NOW() 
+         WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+        [tokenId, userId]
+    );
+    return (res.rowCount || 0) > 0;
 };

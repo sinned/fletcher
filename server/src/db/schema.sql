@@ -1,12 +1,13 @@
 -- Enable PostGIS extension
 CREATE EXTENSION IF NOT EXISTS postgis;
 
--- RESET FOR V2 (MVP Development)
+-- RESET FOR V2.1 (MVP Development)
 DROP TABLE IF EXISTS access_logs CASCADE;
-DROP TABLE IF EXISTS oauth_codes CASCADE;
 DROP TABLE IF EXISTS assistant_connections CASCADE;
 DROP TABLE IF EXISTS locations CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+-- DROP oauth_codes if exists from previous run (it's gone in this schema but good to clean)
+DROP TABLE IF EXISTS oauth_codes CASCADE;
 
 -- Users table (device-based accounts)
 CREATE TABLE IF NOT EXISTS users (
@@ -38,22 +39,22 @@ CREATE INDEX IF NOT EXISTS idx_locations_user_time ON locations(user_id, timesta
 CREATE INDEX IF NOT EXISTS idx_locations_timestamp ON locations(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_locations_geog ON locations USING GIST(point);
 
--- Assistant connections (OAuth tokens)
+-- Assistant connections (MCP tokens)
 CREATE TABLE IF NOT EXISTS assistant_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     assistant_type TEXT NOT NULL CHECK (assistant_type IN ('claude')),
-    oauth_token TEXT UNIQUE NOT NULL,
+    mcp_token TEXT UNIQUE NOT NULL,
+    token_name TEXT,
     connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     revoked_at TIMESTAMP WITH TIME ZONE NULL,
-    last_used_at TIMESTAMP WITH TIME ZONE NULL,
-    UNIQUE(user_id, assistant_type)
+    last_used_at TIMESTAMP WITH TIME ZONE NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_assistant_tokens ON assistant_connections(oauth_token) 
+CREATE INDEX IF NOT EXISTS idx_assistant_tokens ON assistant_connections(mcp_token) 
     WHERE revoked_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_assistant_user ON assistant_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_assistant_user ON assistant_connections(user_id, assistant_type);
 
 -- Access logs (transparency)
 CREATE TABLE IF NOT EXISTS access_logs (
@@ -69,15 +70,3 @@ CREATE TABLE IF NOT EXISTS access_logs (
 
 CREATE INDEX IF NOT EXISTS idx_access_logs_user_time ON access_logs(user_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp DESC);
-
--- OAuth authorization codes (temporary)
-CREATE TABLE IF NOT EXISTS oauth_codes (
-    code TEXT PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    client_id TEXT NOT NULL,
-    redirect_uri TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    used_at TIMESTAMP WITH TIME ZONE NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_oauth_codes_created ON oauth_codes(created_at);
