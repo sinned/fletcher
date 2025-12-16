@@ -2,19 +2,23 @@
 description: Protocol for committing and pushing changes to GitHub
 ---
 
-# Commit and Push Protocol
+# Update and Push Protocol
 
-This workflow MUST be followed whenever checking code into version control.
+Use this checklist **EVERY TIME** you are preparing to push changes to the repository.
 
-1.  **Update Product Requirements Document (PRD)**
-    -   Review `artifacts/prd-fletcher-ios-app.md`.
-    -   Ensure all new features, UI changes, and configuration updates are reflected.
-    -   Update the "Status" or "Date" if necessary.
+1.  **Documentation Review**:
+    - [ ] **Critical**: Have you updated [changelog.md](file:///Users/dennisyang/Antigravity/fletcher/artifacts/changelog.md) with your recent changes?
+    - [ ] Updated `README.md` if new features were added?
+    - [ ] Updated `walkthrough.md` if visual changes/features were verified?
 
-2.  **Verify Artifacts**
-    -   Ensure new assets (icons, etc.) are in the `artifacts/` folder if they are not part of the build bundle but are deliverables.
+2.  **Code Check**:
+    - [ ] Removed temporary debug print statements?
+    - [ ] Verified build passes?
 
-3.  **Git Operations**
-    -   Stage changes: `git add .`
-    -   Commit with descriptive message: `git commit -m "Type: Description"`
-    -   Push to remote: `git push`
+3.  **Git Operations**:
+    - [ ] `git add .`
+    - [ ] `git commit -m "feat(scope): description"` (Use Conventional Commits)
+    - [ ] `git push`
+
+> [!IMPORTANT]
+> Never skip the Changelog update. Users rely on it to know what changed.
