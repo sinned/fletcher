@@ -2,6 +2,17 @@
 
 All notable changes to the Fletcher iOS App project will be documented in this file.
 
+## [0.1.3] - 2025-12-15
+
+### Added
+- **iPad Icons**: Generated required iPad icon sizes (76x76@2x, 83.5x83.5@2x) and added to asset catalog.
+- **Sync Icons**: Updated History list to clearer icons: Blue Cloud+Arrow (Synced) vs Orange Broken Cloud (Not Synced).
+- **Project Structure**: Updated README to reflect current project paths.
+
+### Changed
+- **Location Snap**: Restored "Snap to user" functionality by using `.userLocation` camera mode.
+- **Startup**: App now automatically snaps to the user's current location on launch (if authorized).
+
 ## [0.1.2] - 2025-12-15
 
 ### Changed
@@ -22,10 +33,6 @@ All notable changes to the Fletcher iOS App project will be documented in this f
 - **Zoom Logic**: Fixed a bug where zoom buttons became unresponsive after manually panning or zooming the map by tracking `visibleRegion`.
 - **Assets**: Fixed missing `AccentColor` and `AppIcon` warnings by restoring asset catalog structure.
 - **App Icon**: Generated all required icon sizes (iPhone 20pt-60pt @ 2x/3x) and updated asset catalog configuration to resolve missing icon issue.
-- **iPad Icons**: Generated required iPad icon sizes (76x76@2x, 83.5x83.5@2x) and added to asset catalog.
-- **Sync Icons**: Updated History list to clearer icons: Blue Cloud+Arrow (Synced) vs Orange Broken Cloud (Not Synced).
-- **Location Snap**: Restored "Snap to user" functionality by using `.userLocation` camera mode.
-- **Startup**: App now automatically snaps to the user's current location on launch (if authorized).
 
 ### Changed
 - **Map API**: Refactored `MainView` and `HistoryMapView` to use iOS 17+ MapKit APIs (`MapCameraPosition`, `MapContentBuilder`) to resolve deprecation warnings.
