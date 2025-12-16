@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.2] - 2025-12-16
+
+### Changed
+- **Config**: Updated default server URL to `https://fletcher-server.onrender.com`.
+
 ## [1.2.1] - 2025-12-16
 
 ### Changed

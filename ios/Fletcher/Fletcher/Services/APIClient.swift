@@ -4,8 +4,8 @@ class APIClient {
     static let shared = APIClient()
     
     private var baseURL: URL {
-        let defaultURL = URL(string: "http://localhost:3000/api")!
-        let stored = UserDefaults.standard.string(forKey: "serverURL") ?? "http://localhost:3000"
+        let defaultURL = URL(string: "https://fletcher-server.onrender.com/api")!
+        let stored = UserDefaults.standard.string(forKey: "serverURL") ?? "https://fletcher-server.onrender.com"
         let clean = stored.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return URL(string: "\(clean)/api") ?? defaultURL
     }

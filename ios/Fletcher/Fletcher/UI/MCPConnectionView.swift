@@ -10,7 +10,7 @@ struct MCPConnectionView: View {
     @State private var newTokenName = "My Device"
     @State private var generatedToken: MCPTokenResponse?
     
-    @AppStorage("serverURL") private var serverURL: String = "http://localhost:3000"
+    @AppStorage("serverURL") private var serverURL: String = "https://fletcher-server.onrender.com"
     
     var body: some View {
         List {
