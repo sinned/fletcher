@@ -97,7 +97,11 @@ The Fletcher Server is the central backend for the Fletcher ecosystem, responsib
 ┌──────────────────────────────────────────────────────────────┐
 │ 5. Claude connects: GET /sse                                │
 │    Headers: Authorization: Bearer mcp_...                   │
-│    Server validates token → establishes SSE connection      │
+#### Authentication Flow (Simplified)
+1.  **Mobile App:** Uses API Key (`fletch_sk_...`) sent in `Authorization: Bearer` header.
+2.  **MCP (Claude):** Uses query parameter `?token=mcp_...` or Header. 
+    *   *Reasoning:* Claude Desktop often prefers single-URL configuration.
+    *   The server uses a **Fastify Plugin** to handle MCP routes (`/sse`, `/messages`) separately, disabling standard JSON parsing to allow the MCP SDK to handle the raw stream.
 └──────────────────────────────────────────────────────────────┘
                           ↓
 ┌──────────────────────────────────────────────────────────────┐
@@ -731,7 +735,7 @@ Sent immediately after connection:
       "description": "End of time range (ISO 8601)"
     }
   },
-  "required": ["start_date", "end_date"]
+  "required": []
 }
 ```
 

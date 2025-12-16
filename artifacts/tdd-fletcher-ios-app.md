@@ -69,7 +69,11 @@ The app follows a **Model-View-ViewModel (MVVM)** architectural pattern, heavily
 - **Endpoints**:
   - `POST /api/locations`: Sends an array of `LocationPoint` objects.
   - `GET /health`: Checks server connectivity.
-- **Failover**: If the server is unreachable, the app simply errors out silently (or logs) and keeps the data local. The `synced` flag remains `false` until a successful 200 OK response is received.
+- **Refactoring**: `APIClient` is an `ObservableObject` exposing `@Published` properties (`isSyncing`, `lastSyncError`) for real-time UI updates.
+- **Failover**:
+  - **401 Unauthorized**: Automatically clears stored API key and re-registers the device to heal broken auth states.
+  - **400 Bad Request**: Server validation errors are parsed and displayed to the user.
+- **Resync Strategy**: `markAllAsUnsynced()` iterates through all local points and resets `synced = false`, forcing them to be re-evaluated for upload.
 
 ## 4. Data Design
 
