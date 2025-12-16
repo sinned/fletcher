@@ -6,6 +6,15 @@
 - **Server**: Root route now returns user and location counts.
 - **Server**: Health check verifies database connectivity.
 
+## [1.2.3] - 2025-12-16
+
+### Added
+- **Sync Status UI**: New screen to view detailed sync status, last attempt time, and pending items queue.
+- **Server Health**: Status indicator in Location History showing real-time server connection state.
+
+### Fixed
+- **Sync Reliability**: Fixed 400 Error during location sync by correcting date encoding format and adding missing authentication headers.
+
 ## [1.2.2] - 2025-12-16
 
 ### Changed
