@@ -7,6 +7,7 @@ All notable changes to the Fletcher iOS App project will be documented in this f
 ### Changed
 - **Version**: Bumped version to 0.1.2.
 - **Settings**: Added version display footer to the Settings screen.
+- **Settings**: Implemented "Delete All History" functionality with a confirmation popup.
 
 ## [0.1.1] - 2025-12-15
 

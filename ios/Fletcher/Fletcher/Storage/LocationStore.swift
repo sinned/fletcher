@@ -24,6 +24,11 @@ class LocationStore: ObservableObject {
         save()
     }
     
+    func clearAll() {
+        locations.removeAll()
+        save()
+    }
+    
     func markSynced(_ ids: [UUID]) {
         // Update synced status
         // For simple JSON, acts as read-modify-write

@@ -4,6 +4,7 @@ struct SettingsView: View {
     @AppStorage("serverURL") private var serverURL: String = "http://localhost:3000"
     @State private var precision: Double = 1.0
     @State private var retentionDays: Int = 30
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
         NavigationView {
@@ -40,7 +41,15 @@ struct SettingsView: View {
                 
                 Section {
                     Button("Delete All History", role: .destructive) {
-                        // Action
+                        showDeleteConfirmation = true
+                    }
+                    .alert("Delete All History", isPresented: $showDeleteConfirmation) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Delete", role: .destructive) {
+                            LocationStore.shared.clearAll()
+                        }
+                    } message: {
+                        Text("Are you sure you want to delete all location history? This action cannot be undone.")
                     }
                 }
                 
