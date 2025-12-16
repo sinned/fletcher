@@ -3,6 +3,19 @@
 ## Overview
 Fletcher is a privacy-first location tracking app that enables AI assistants to provide location-aware assistance through Model Context Protocol (MCP).
 
+## Features
+- **Background Tracking**: Efficiently tracks location in the background with "Always" permission.
+- **Privacy Control**: Manual "Tracking" toggle to strictly control when location is recorded.
+- **Visual Feedback**: Clear "TRACKING OFF" overlay, grayscale map, and haptic/visual warnings when disabled.
+- **Interactive Map**:
+    - **Live Snap**: Automatically follows user location on startup and when centered.
+    - **Zoom Controls**: Manual +/- buttons for precise navigation.
+    - **History Map**: View historical location points on a map.
+- **Data Management**:
+    - **Local History**: View logs in List or Map format.
+    - **Delete History**: Securely clear all local data with confirmation.
+- **MCP Integration**: Designed to sync with a local Model Context Protocol server.
+
 ## Project Structure
 - `ios/`: iOS Application (SwiftUI)
 - `server/`: MCP Server (Node.js/Fastify)
@@ -28,10 +41,14 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
    ```
 
 ### iOS Setup
-1. Open `ios/` folder.
-2. Create a new Xcode project named "Fletcher" using the "App" template.
-3. Replace the generated content with the files in `ios/Fletcher/Source/`.
-   - Ensure you add the files to the app target.
+1. Open `ios/Fletcher/Fletcher.xcodeproj`.
+2. Ensure the "Fletcher" target is selected.
+3. Verify Signing & Capabilities for your team.
+4. Add `Info.plist` keys (already configured):
+   - `NSLocationAlwaysAndWhenInUseUsageDescription`
+   - `NSLocationWhenInUseUsageDescription`
+   - `UIBackgroundModes`: select `location` and `fetch`.
+5. Build and run on a device (Simulator doesn't support "Always" location well).
 4. Add `Info.plist` keys:
    - `NSLocationAlwaysAndWhenInUseUsageDescription`
    - `NSLocationWhenInUseUsageDescription`
