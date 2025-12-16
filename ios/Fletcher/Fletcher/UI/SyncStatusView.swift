@@ -64,6 +64,17 @@ struct SyncStatusView: View {
                     .disabled(api.isSyncing)
                 }
                 
+                Section(header: Text("Debug")) {
+                    Button(action: {
+                        store.markAllAsUnsynced()
+                        api.syncLocations()
+                    }) {
+                        Text("Resync All Data")
+                            .foregroundColor(.orange)
+                    }
+                    .disabled(api.isSyncing)
+                }
+                
                 Section(footer: Text("Fletcher syncs automatically in the background when significant location changes are detected.")) {
                     EmptyView()
                 }

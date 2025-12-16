@@ -45,6 +45,13 @@ class LocationStore: ObservableObject {
         return locations.filter { !$0.synced }
     }
     
+    func markAllAsUnsynced() {
+        for i in 0..<locations.count {
+            locations[i].synced = false
+        }
+        save()
+    }
+    
     private func save() {
         // Dispatch to background to avoid blocking main thread
         DispatchQueue.global(qos: .background).async {

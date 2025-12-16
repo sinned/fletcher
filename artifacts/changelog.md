@@ -16,6 +16,11 @@
 ### Fixed
 - **MCP Connection**: Fixed an issue where the server was consuming the JSON body before the MCP SDK could read it, causing connection errors in Claude. Refactored MCP routes into an isolated plugin with custom content parsing `parseAs: 'buffer'`.
 
+## [1.2.5] - 2025-12-16
+
+### Added
+- **Debug**: Added "Resync All Data" button in Sync Status screen to force re-uploading all local data (useful if server was redeployed/wiped).
+
 ## [1.2.4] - 2025-12-16
 
 ### Fixed
