@@ -12,6 +12,9 @@ All notable changes to the Fletcher iOS App project will be documented in this f
 - **Zoom Controls**: Added manual Zoom In (+) and Zoom Out (-) buttons to both Main Map and History Map.
 - **Interaction Feedback**: Added "Wiggle" animation to the toggle and "Pulse" animation to the overlay when attempting to log location while tracking is off.
 - **Version Display**: Added "v0.1.1" label to the Splash Screen.
+- **Zoom Logic**: Fixed a bug where zoom buttons became unresponsive after manually panning or zooming the map by tracking `visibleRegion`.
+- **Assets**: Fixed missing `AccentColor` and `AppIcon` warnings by restoring asset catalog structure.
+- **Location Snap**: Restored "Snap to user" functionality by using `.userLocation` camera mode.
 
 ### Changed
 - **Map API**: Refactored `MainView` and `HistoryMapView` to use iOS 17+ MapKit APIs (`MapCameraPosition`, `MapContentBuilder`) to resolve deprecation warnings.

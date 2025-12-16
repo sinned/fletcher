@@ -53,6 +53,9 @@ struct MapView: View {
     @State private var wiggleTrigger = 0
     @State private var overlayPulseTrigger = false
     
+    // Track the visible region to support zooming after user interaction
+    @State private var visibleRegion: MKCoordinateRegion?
+
     // Zoom state helper
     private let zoomFactor = 2.0
     
@@ -61,6 +64,9 @@ struct MapView: View {
             // 1. Map Layer
             Map(position: $position) {
                 UserAnnotation()
+            }
+            .onMapCameraChange { context in
+                visibleRegion = context.region
             }
             .mapControls {
                 // Disable default controls
@@ -212,35 +218,42 @@ struct MapView: View {
             showPulse = true
         }
         
-        if let loc = locationService.currentLocation {
+        if let _ = locationService.currentLocation {
              withAnimation {
-                 position = .region(MKCoordinateRegion(
-                     center: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude),
-                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                 ))
+                 // Snap to user location and start following
+                 position = .userLocation(fallback: .automatic)
              }
         }
     }
     
     private func zoomIn() {
-        if let region = position.region {
-            var newSpan = region.span
-            newSpan.latitudeDelta /= zoomFactor
-            newSpan.longitudeDelta /= zoomFactor
-            withAnimation {
-                position = .region(MKCoordinateRegion(center: region.center, span: newSpan))
-            }
+        // Use visibleRegion if available (from manual interaction), otherwise fallback to position.region or default
+        let currentRegion = visibleRegion ?? position.region ?? MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+        
+        var newSpan = currentRegion.span
+        newSpan.latitudeDelta /= zoomFactor
+        newSpan.longitudeDelta /= zoomFactor
+        
+        withAnimation {
+            position = .region(MKCoordinateRegion(center: currentRegion.center, span: newSpan))
         }
     }
     
     private func zoomOut() {
-        if let region = position.region {
-            var newSpan = region.span
-            newSpan.latitudeDelta *= zoomFactor
-            newSpan.longitudeDelta *= zoomFactor
-            withAnimation {
-                position = .region(MKCoordinateRegion(center: region.center, span: newSpan))
-            }
+        let currentRegion = visibleRegion ?? position.region ?? MKCoordinateRegion(
+             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+         )
+         
+        var newSpan = currentRegion.span
+        newSpan.latitudeDelta *= zoomFactor
+        newSpan.longitudeDelta *= zoomFactor
+        
+        withAnimation {
+            position = .region(MKCoordinateRegion(center: currentRegion.center, span: newSpan))
         }
     }
 }

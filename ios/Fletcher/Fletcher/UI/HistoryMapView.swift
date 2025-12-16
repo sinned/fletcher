@@ -6,6 +6,7 @@ struct HistoryMapView: View {
     
     @State private var position: MapCameraPosition = .automatic
     @State private var hasSetInitialPosition = false
+    @State private var visibleRegion: MKCoordinateRegion?
     
     // Zoom state helper
     private let zoomFactor = 2.0
@@ -22,6 +23,9 @@ struct HistoryMapView: View {
                     }
                     .annotationTitles(.hidden)
                 }
+            }
+            .onMapCameraChange { context in
+                visibleRegion = context.region
             }
             .onAppear {
                 if !hasSetInitialPosition, let last = locations.first { // Sorted by desc timestamp usually
@@ -66,24 +70,32 @@ struct HistoryMapView: View {
     }
     
     private func zoomIn() {
-        if let region = position.region {
-            var newSpan = region.span
-            newSpan.latitudeDelta /= zoomFactor
-            newSpan.longitudeDelta /= zoomFactor
-            withAnimation {
-                position = .region(MKCoordinateRegion(center: region.center, span: newSpan))
-            }
+        let currentRegion = visibleRegion ?? position.region ?? MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+        
+        var newSpan = currentRegion.span
+        newSpan.latitudeDelta /= zoomFactor
+        newSpan.longitudeDelta /= zoomFactor
+        
+        withAnimation {
+            position = .region(MKCoordinateRegion(center: currentRegion.center, span: newSpan))
         }
     }
     
     private func zoomOut() {
-        if let region = position.region {
-            var newSpan = region.span
-            newSpan.latitudeDelta *= zoomFactor
-            newSpan.longitudeDelta *= zoomFactor
-            withAnimation {
-                position = .region(MKCoordinateRegion(center: region.center, span: newSpan))
-            }
+        let currentRegion = visibleRegion ?? position.region ?? MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+
+        var newSpan = currentRegion.span
+        newSpan.latitudeDelta *= zoomFactor
+        newSpan.longitudeDelta *= zoomFactor
+        
+        withAnimation {
+            position = .region(MKCoordinateRegion(center: currentRegion.center, span: newSpan))
         }
     }
 }
