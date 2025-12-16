@@ -32,6 +32,7 @@ The system consists of two main components:
 ### 3.3 Server Synchronization
 -   **Client**: `APIClient` handles network requests.
 -   **Endpoint**: `POST /api/locations`.
+-   **Authentication**: Bearer Token (API Key) required header.
 -   **Mechanism**: Batches unsynced locations and pushes to server. On 200 OK, marks items as synced locally.
 -   **Configuration**: Defaults to `localhost:3000` (configurable for device testing).
 
@@ -52,6 +53,7 @@ The system consists of two main components:
 -   **Settings Tab**:
     -   **Server Configuration**: Configurable Server URL (saved in `UserDefaults`).
     -   **Privacy**: Precision and retention controls.
+    -   **MCP Integration**: UI to generate and view MCP tokens for Claude connection.
 
 ## 4. Specific Implementation Details
 
@@ -84,6 +86,6 @@ struct LocationPoint: Codable, Identifiable {
     -   Info.plist: `NSLocationAlwaysAndWhenInUseUsageDescription`.
 
 ## 6. Future Roadmap
--   [ ] OAuth2 Authentication for Server.
+-   [x] OAuth2 Authentication (Replaced by API Key/MCP Token model).
 -   [ ] Battery optimization (adaptive tracking).
 -   [ ] MCP Server-Sent Events (SSE) for real-time AI context.

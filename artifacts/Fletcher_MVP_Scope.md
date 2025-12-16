@@ -23,7 +23,7 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 **MCP Server** that:
 - Implements Model Context Protocol standard (Anthropic spec)
 - Provides real-time and historical location data
-- Authenticates AI assistants with OAuth2
+- Authenticates AI assistants with Pre-Shared MCP Tokens
 - Logs all data access for user transparency
 
 **Claude Integration** (primary launch partner):
@@ -123,7 +123,7 @@ Fletcher/
 │   └── RetentionPolicy.swift          # Auto-deletion
 ├── MCP/
 │   ├── MCPClient.swift                # Server communication
-│   ├── AuthManager.swift              # OAuth2 flow
+│   ├── AuthManager.swift              # API Key management
 │   └── SyncService.swift              # Location upload
 ├── UI/
 │   ├── MainView.swift                 # Map + status
@@ -200,10 +200,10 @@ POST /mcp/tools/calculate-eta
 POST /mcp/tools/get-directions
 
 // Admin/Management
-POST /auth/oauth/authorize
-POST /auth/oauth/token
-GET  /user/privacy-settings
-GET  /user/access-logs
+POST /api/mcp/generate-token
+GET  /api/mcp/tokens
+DELETE /api/mcp/tokens/:id
+GET  /api/access-logs
 ```
 
 **Database Schema:**
@@ -233,11 +233,11 @@ locations (
 assistant_connections (
     id UUID PRIMARY KEY,
     user_id UUID REFERENCES users(id),
-    assistant_type TEXT,  -- 'claude', 'poke', etc.
-    oauth_token TEXT ENCRYPTED,
-    precision_level TEXT,  -- 'high', 'medium', 'low'
-    enabled BOOLEAN,
-    connected_at TIMESTAMP
+    assistant_type TEXT,  -- 'claude'
+    mcp_token TEXT,       -- Bearer token
+    token_name TEXT,      -- User label
+    connected_at TIMESTAMP,
+    expires_at TIMESTAMP
 )
 
 -- Access audit log
@@ -299,7 +299,8 @@ Following Anthropic's Model Context Protocol specification:
 
 **Security:**
 
-- OAuth2 with PKCE flow for assistant authentication
+- API Keys for mobile app authentication
+- Pre-shared Bearer tokens for MCP access
 - Rate limiting: 60 requests/minute per assistant
 - Request signing to prevent replay attacks
 - Audit log of every data access
@@ -317,12 +318,12 @@ Users can configure per-assistant:
 
 **Setup Flow:**
 
-1. User opens Claude settings → Integrations
-2. Clicks "Add MCP Server"
-3. Enters Fletcher MCP server URL: `https://mcp.fletcher.app`
-4. Redirected to Fletcher app for OAuth authorization
-5. User reviews and approves permissions
-6. Returns to Claude with active connection
+1. User opens Fletcher app to generate token
+2. Copies token and MCP URL
+3. Opens Claude Desktop settings → Integrations
+4. Clicks "Add MCP Server"
+5. Enters URL and pasted token
+6. Connection established immediately
 
 **Claude Usage:**
 
@@ -364,8 +365,8 @@ Based on user's precision setting:
 - Review what data is stored
 
 **Step 4: Connect Claude**
-- One-tap Claude connection
-- OAuth authorization flow
+- Generate MCP Token
+- Copy-paste into Claude
 - Success confirmation
 
 **Total time:** <3 minutes
@@ -532,12 +533,12 @@ Based on user's precision setting:
 - [ ] Battery optimization implementation
 
 ### Sprint 3-4 (Weeks 5-8): MCP Server
-- [ ] Node.js server with Fastify
-- [ ] PostgreSQL + PostGIS setup
-- [ ] MCP protocol implementation
-- [ ] OAuth2 authentication flow
-- [ ] Current location endpoint
-- [ ] Location history endpoint
+- [x] Node.js server with Fastify
+- [x] PostgreSQL + PostGIS setup
+- [x] MCP protocol implementation
+- [x] API Key & MCP Token authentication
+- [x] Current location endpoint
+- [x] Location history endpoint
 
 ### Sprint 5-6 (Weeks 9-12): Integration
 - [ ] iOS ↔ Server sync implementation

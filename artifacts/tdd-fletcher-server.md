@@ -55,18 +55,63 @@ The Fletcher Server is the central backend for the Fletcher ecosystem, responsib
 
 **2. MCP Server**
 - Handles AI assistant connections via Server-Sent Events (SSE)
-- Authenticates via OAuth2 Bearer tokens
+- Authenticates via pre-shared MCP tokens
 - Exposes resources and tools per MCP spec
 
-**3. Auth Service**
-- Manages API key generation for devices
-- Handles OAuth2 flow for Claude integration
-- Token validation and revocation
-
-**4. Background Jobs**
+**3. Background Jobs**
 - Data retention cleanup (daily at 3 AM UTC)
 - Access log aggregation (optional)
 - Health checks and metrics
+
+### Connection Flow (Pre-Shared Token)
+
+**How Users Connect Claude to Fletcher:**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 1. User opens Fletcher app → Settings → "Connect Claude"    │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 2. App calls: POST /api/mcp/generate-token                  │
+│    Server generates MCP token and returns it                │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 3. App displays:                                            │
+│    ┌────────────────────────────────────┐                   │
+│    │ Copy these to Claude Settings:     │                   │
+│    │                                    │                   │
+│    │ URL: https://mcp.fletcher.app/sse  │ [Copy]           │
+│    │ Token: mcp_a1b2c3d4...            │ [Copy]           │
+│    │                                    │                   │
+│    │ [Open Claude Settings]             │                   │
+│    └────────────────────────────────────┘                   │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 4. User goes to Claude → Settings → Add MCP Server          │
+│    Pastes URL and token from Fletcher                       │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 5. Claude connects: GET /sse                                │
+│    Headers: Authorization: Bearer mcp_...                   │
+│    Server validates token → establishes SSE connection      │
+└──────────────────────────────────────────────────────────────┘
+                          ↓
+┌──────────────────────────────────────────────────────────────┐
+│ 6. Done! Claude can now access location data                │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Benefits of This Approach:**
+- ✅ No OAuth complexity
+- ✅ User can initiate from Fletcher OR Claude
+- ✅ Standard MCP pattern (follows how other MCP servers work)
+- ✅ No sign-in required (device-ID based)
+- ✅ User sees the token, maintains control
+- ✅ Instantly revocable from Fletcher app
 
 ---
 
@@ -108,22 +153,22 @@ CREATE INDEX idx_locations_user_time ON locations(user_id, timestamp DESC);
 CREATE INDEX idx_locations_timestamp ON locations(timestamp DESC);
 CREATE INDEX idx_locations_geog ON locations USING GIST(point);
 
--- Assistant connections (OAuth tokens)
+-- Assistant connections (MCP tokens)
 CREATE TABLE assistant_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     assistant_type TEXT NOT NULL CHECK (assistant_type IN ('claude')),
-    oauth_token TEXT UNIQUE NOT NULL,
+    mcp_token TEXT UNIQUE NOT NULL,
+    token_name TEXT,
     connected_at TIMESTAMP DEFAULT NOW(),
     expires_at TIMESTAMP NOT NULL,
     revoked_at TIMESTAMP NULL,
-    last_used_at TIMESTAMP NULL,
-    UNIQUE(user_id, assistant_type)
+    last_used_at TIMESTAMP NULL
 );
 
-CREATE INDEX idx_assistant_tokens ON assistant_connections(oauth_token) 
+CREATE INDEX idx_assistant_tokens ON assistant_connections(mcp_token) 
     WHERE revoked_at IS NULL;
-CREATE INDEX idx_assistant_user ON assistant_connections(user_id);
+CREATE INDEX idx_assistant_user ON assistant_connections(user_id, assistant_type);
 
 -- Access logs (transparency)
 CREATE TABLE access_logs (
@@ -139,18 +184,6 @@ CREATE TABLE access_logs (
 
 CREATE INDEX idx_access_logs_user_time ON access_logs(user_id, timestamp DESC);
 CREATE INDEX idx_access_logs_timestamp ON access_logs(timestamp DESC);
-
--- OAuth authorization codes (temporary)
-CREATE TABLE oauth_codes (
-    code TEXT PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    client_id TEXT NOT NULL,
-    redirect_uri TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    used_at TIMESTAMP NULL
-);
-
-CREATE INDEX idx_oauth_codes_created ON oauth_codes(created_at);
 ```
 
 ### Data Model Details
@@ -168,7 +201,8 @@ CREATE INDEX idx_oauth_codes_created ON oauth_codes(created_at);
 - `created_at`: When record was inserted (for debugging)
 
 **Assistant Connections**
-- `oauth_token`: Bearer token for MCP access (format: `mcp_<random>`)
+- `mcp_token`: Bearer token for MCP access (format: `mcp_<random>`)
+- `token_name`: Optional user-friendly name (e.g., "My MacBook", "Work Setup")
 - `expires_at`: Token expiration (1 year for MVP)
 - `revoked_at`: If user disconnected, timestamp of revocation
 - `last_used_at`: For monitoring inactive connections
@@ -456,68 +490,87 @@ Permanently delete all user data.
 
 ---
 
-### OAuth2 Endpoints (for Claude Integration)
+#### 10. Generate MCP Token
 
-#### 1. Authorization Endpoint
+**POST** `/api/mcp/generate-token`
 
-**GET** `/auth/oauth/authorize`
-
-Initiates OAuth flow when Claude wants to connect.
-
-**Query Parameters:**
-- `client_id`: "claude" (hardcoded for MVP)
-- `redirect_uri`: Claude callback URL
-- `state`: CSRF protection token
-- `user_id`: Fletcher device UUID (passed in custom param)
-
-**Flow (MVP - Auto-Approve):**
-1. Validate `client_id` is "claude"
-2. Validate `user_id` exists
-3. Generate authorization `code`
-4. Store code mapping in `oauth_codes` table
-5. Redirect to `redirect_uri?code=<code>&state=<state>`
-
-**Response:** `302 Redirect`
-```
-Location: https://claude.ai/mcp/callback?code=auth_abc123&state=xyz
-```
-
-**Future:** Add HTML consent page showing what Claude will access.
-
----
-
-#### 2. Token Endpoint
-
-**POST** `/auth/oauth/token`
-
-Exchange authorization code for access token.
+Generate a new MCP token for connecting Claude to Fletcher.
 
 **Request:**
-```
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=authorization_code&
-code=auth_abc123&
-client_id=claude&
-client_secret=<secret>&
-redirect_uri=https://claude.ai/mcp/callback
-```
-
-**Response:** `200 OK`
 ```json
 {
-  "access_token": "mcp_a1b2c3d4e5f6...",
-  "token_type": "Bearer",
-  "expires_in": 31536000,
-  "scope": "location:read"
+  "assistant_type": "claude",
+  "token_name": "My MacBook"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "token": "mcp_a1b2c3d4e5f6g7h8i9j0...",
+  "sse_url": "https://mcp.fletcher.app/sse",
+  "expires_at": "2026-12-14T17:30:00Z",
+  "instructions": "Add this MCP server to Claude:\n1. Open Claude Settings → Integrations\n2. Click 'Add MCP Server'\n3. Enter the URL and token above"
 }
 ```
 
 **Validation:**
-- Code must exist and not be used
-- Client credentials must match
-- Code expires after 10 minutes
-- Mark code as used after exchange
+- `assistant_type`: Must be "claude" (for MVP)
+- `token_name`: Optional, max 50 characters
+- User can have multiple tokens per assistant type
+
+**Notes:**
+- Token is shown only once - user must copy it
+- Store token securely in Claude's MCP settings
+- Token grants full access to location data (per privacy settings)
+
+---
+
+#### 11. List MCP Tokens
+
+**GET** `/api/mcp/tokens`
+
+List all MCP tokens for this user.
+
+**Response:** `200 OK`
+```json
+{
+  "tokens": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "assistant_type": "claude",
+      "token_name": "My MacBook",
+      "connected_at": "2025-12-10T14:22:00Z",
+      "last_used_at": "2025-12-14T17:28:00Z",
+      "expires_at": "2026-12-10T14:22:00Z",
+      "status": "active",
+      "token_preview": "mcp_a1b2...j0k1"
+    }
+  ]
+}
+```
+
+**Token Preview:**
+- First 8 and last 4 characters shown for identification
+- Full token never returned after creation
+
+---
+
+#### 12. Revoke MCP Token
+
+**DELETE** `/api/mcp/tokens/:token_id`
+
+Revoke a specific MCP token.
+
+**Response:** `200 OK`
+```json
+{
+  "status": "ok",
+  "revoked_at": "2025-12-14T17:30:00Z"
+}
+```
+
+**Effect:** Claude immediately loses access to location data.
 
 ---
 
@@ -748,7 +801,7 @@ function hashAPIKey(apiKey: string): string {
 - Return plaintext key only once during registration
 - User must store in iOS Keychain
 
-### OAuth Token Generation
+### MCP Token Generation
 
 ```typescript
 function generateMCPToken(): string {
@@ -764,7 +817,7 @@ async function validateMCPToken(token: string): Promise<{ userId: string } | nul
   const connection = await db.query(`
     SELECT user_id, expires_at, revoked_at
     FROM assistant_connections
-    WHERE oauth_token = $1
+    WHERE mcp_token = $1
   `, [token]);
   
   if (!connection.rows[0]) return null;
@@ -775,7 +828,7 @@ async function validateMCPToken(token: string): Promise<{ userId: string } | nul
   await db.query(`
     UPDATE assistant_connections
     SET last_used_at = NOW()
-    WHERE oauth_token = $1
+    WHERE mcp_token = $1
   `, [token]);
   
   return { userId: connection.rows[0].user_id };
@@ -911,12 +964,6 @@ cron.schedule('0 3 * * *', async () => {
   
   console.log(`Deleted ${result.rowCount} expired location records`);
   
-  // Also cleanup old OAuth codes
-  await db.query(`
-    DELETE FROM oauth_codes
-    WHERE created_at < NOW() - INTERVAL '1 hour'
-  `);
-  
   // Cleanup old access logs (keep 90 days)
   await db.query(`
     DELETE FROM access_logs
@@ -1010,7 +1057,6 @@ HOST=0.0.0.0
 
 # Security
 API_SECRET_KEY=<random-256-bit-key>
-OAUTH_CLIENT_SECRET_CLAUDE=<shared-secret-with-claude>
 
 # CORS
 ALLOWED_ORIGINS=https://fletcher-app.com,https://claude.ai
@@ -1378,18 +1424,20 @@ MVP targets 500 users, but architecture should scale to 10,000+ with minimal cha
 ## 15. Open Questions & Future Considerations
 
 ### For MVP
-1. **Client Secret Management:** How does Claude securely store `client_secret` for OAuth?
-2. **Token Refresh:** Should we implement refresh tokens or stick with long-lived tokens?
-3. **Webhook Support:** Do we need real-time location updates via webhooks?
+1. **Token Security:** Should tokens be revocable by Claude as well as the user?
+2. **Token Limits:** Should there be a limit on how many tokens a user can generate?
+3. **Token Names:** Should we require token names or make them optional?
 
 ### Post-MVP
-4. **Geofencing:** Add geofence resources to MCP
-5. **Multi-Assistant:** Extend beyond Claude (Poke, ChatGPT, etc.)
-6. **Analytics Dashboard:** Web dashboard for users to visualize location history
-7. **Export Functionality:** Allow users to export all data as JSON/KML
-8. **Real-time Updates:** WebSocket support for live location streaming
-9. **Shared Locations:** Temporary location sharing with other users
-10. **Offline Mode:** Store locations offline and sync when connected
+4. **Token Rotation:** Implement automatic token rotation for security
+5. **Scoped Tokens:** Allow tokens with limited permissions (read-only current location, etc.)
+6. **Geofencing:** Add geofence resources to MCP
+7. **Multi-Assistant:** Extend beyond Claude (Poke, ChatGPT, etc.)
+8. **Analytics Dashboard:** Web dashboard for users to visualize location history
+9. **Export Functionality:** Allow users to export all data as JSON/KML
+10. **Real-time Updates:** WebSocket support for live location streaming
+11. **Shared Locations:** Temporary location sharing with other users
+12. **Offline Mode:** Store locations offline and sync when connected
 
 ---
 
@@ -1408,28 +1456,24 @@ MVP targets 500 users, but architecture should scale to 10,000+ with minimal cha
 - [ ] Implement privacy settings endpoints
 - [ ] Implement access logs endpoint
 - [ ] Implement connection management endpoints
+- [ ] Implement MCP token generation endpoints
 - [ ] Add rate limiting middleware
 
-### Phase 3: OAuth Flow (Week 5-6)
-- [ ] Implement `/auth/oauth/authorize`
-- [ ] Implement `/auth/oauth/token`
-- [ ] Create OAuth code storage and validation
-- [ ] Test OAuth flow end-to-end with mock Claude
-
-### Phase 4: MCP Server (Week 7-8)
+### Phase 3: MCP Server (Week 5-6)
 - [ ] Implement SSE connection handler
 - [ ] Implement MCP resource endpoints
 - [ ] Implement MCP tools
 - [ ] Apply precision level filtering
 - [ ] Add access logging for MCP requests
+- [ ] Test MCP integration with Claude
 
-### Phase 5: Privacy & Cleanup (Week 9-10)
+### Phase 4: Privacy & Cleanup (Week 7-8)
 - [ ] Implement data retention cleanup job
 - [ ] Add precision reduction logic
 - [ ] Test privacy settings enforcement
 - [ ] Implement account deletion
 
-### Phase 6: Testing & Launch (Week 11-12)
+### Phase 5: Testing & Launch (Week 9-10)
 - [ ] Write unit tests (80%+ coverage)
 - [ ] Write integration tests
 - [ ] Load testing with k6
@@ -1451,7 +1495,6 @@ import rateLimit from '@fastify/rate-limit';
 import { config } from './config';
 import { authPlugin } from './plugins/auth';
 import { mobileRoutes } from './routes/mobile';
-import { oauthRoutes } from './routes/oauth';
 import { mcpRoutes } from './routes/mcp';
 
 const fastify = Fastify({
@@ -1477,7 +1520,6 @@ await fastify.register(authPlugin);
 
 // Routes
 await fastify.register(mobileRoutes, { prefix: '/api' });
-await fastify.register(oauthRoutes, { prefix: '/auth' });
 await fastify.register(mcpRoutes, { prefix: '/mcp' });
 
 // Health check
