@@ -377,6 +377,8 @@ Based on user's precision setting:
 - Last 24 hours location trail (faded)
 - Battery impact indicator
 - **Active/paused status toggle (Manual override)**
+- **Manual Zoom Controls (+/- buttons)**
+- **Visual Feedback:** "TRACKING OFF" overlay when disabled
 - **History View**: Toggle between list and map view of location history
 
 **Settings View:**

@@ -7,66 +7,34 @@ struct MainView: View {
     @State private var selection = 0
     
     var body: some View {
-        ZStack(alignment: .top) {
-            // Main Content (Map/Tabs)
-            TabView(selection: $selection) {
-                MapView()
-                    .tabItem {
-                        Label("Map", systemImage: "map")
-                    }
-                    .tag(0)
-                
-                LogsView()
-                    .tabItem {
-                        Label("Logs", systemImage: "list.bullet")
-                    }
-                    .tag(1)
-                
-                HistoryView()
-                    .tabItem {
-                        Label("History", systemImage: "clock")
-                    }
-                    .tag(2)
-                
-                SettingsView()
-                    .tabItem {
-                        Label("Settings", systemImage: "gear")
-                    }
-                    .tag(3)
-            }
-            .accentColor(.purple)
-            .edgesIgnoringSafeArea(.top) // Allow map to go under status bar/header
-            
-            // Custom Top Bar (Floating Overlay) - Only show on Map (Tag 0)
-            if selection == 0 {
-                HStack {
-                    Image(systemName: "location.north.fill")
-                        .foregroundColor(.purple)
-                    Text("Fletcher")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    
-                    Toggle("", isOn: Binding(
-                        get: { locationService.isTracking },
-                        set: { isTracking in
-                            if isTracking {
-                                locationService.startTracking()
-                            } else {
-                                locationService.stopTracking()
-                            }
-                        }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle(tint: .purple))
+        // Main Content (Map/Tabs)
+        TabView(selection: $selection) {
+            MapView()
+                .tabItem {
+                    Label("Map", systemImage: "map")
                 }
-                .padding()
-                .padding(.top, 44) // Status bar spacing
-                .background(Color.white.opacity(0.01))
-                .allowsHitTesting(false)
-            }
+                .tag(0)
+            
+            LogsView()
+                .tabItem {
+                    Label("Logs", systemImage: "list.bullet")
+                }
+                .tag(1)
+            
+            HistoryView()
+                .tabItem {
+                    Label("History", systemImage: "clock")
+                }
+                .tag(2)
+            
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
+                .tag(3)
         }
+        .accentColor(.purple)
+        .edgesIgnoringSafeArea(.top) // Allow map to go under status bar/header
     }
 }
 
@@ -74,63 +42,205 @@ struct MapView: View {
     @EnvironmentObject var locationService: BackgroundLocationService
     
     // Default to San Francisco
-    @State private var region = MKCoordinateRegion(
+    @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-    )
+    ))
     
-    @State private var trackingMode: MapUserTrackingMode = .follow
     @State private var showPulse = false
     
+    // Interaction States
+    @State private var wiggleTrigger = 0
+    @State private var overlayPulseTrigger = false
+    
+    // Zoom state helper
+    private let zoomFactor = 2.0
+    
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ZStack {
-                Map(coordinateRegion: $region,
-                    showsUserLocation: true,
-                    userTrackingMode: $trackingMode)
-                    .edgesIgnoringSafeArea(.top)
-                
-                if showPulse {
-                    Circle()
-                        .stroke(Color.purple, lineWidth: 2)
-                        .frame(width: 20, height: 20)
-                        .scaleEffect(4) // Scale up 4x
-                        .opacity(0)     // Fade out
-                        .onAppear {
-                            // Reset state after animation
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                self.showPulse = false
-                            }
-                        }
+        ZStack(alignment: .top) {
+            // 1. Map Layer
+            Map(position: $position) {
+                UserAnnotation()
+            }
+            .mapControls {
+                // Disable default controls
+            }
+            .edgesIgnoringSafeArea(.top)
+            .saturation(locationService.isTracking ? 1.0 : 0.0)
+            
+            // 2. Tracking Off Overlay
+            if !locationService.isTracking {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.black.opacity(0.3))
+                        .edgesIgnoringSafeArea(.top)
+                        .allowsHitTesting(false)
+                        
+                    Text("TRACKING OFF")
+                        .font(.largeTitle)
+                        .fontWeight(.heavy)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.red.opacity(0.8))
+                        .cornerRadius(12)
+                        // Overlay Pulse Animation
+                        .scaleEffect(overlayPulseTrigger ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.3), value: overlayPulseTrigger)
                 }
             }
             
-            Button(action: {
-                trackingMode = .follow
-                locationService.manuallyLogLocation() // Log entry on tap
-                
-                // Trigger Pulse
-                withAnimation(.easeOut(duration: 0.8)) {
-                    showPulse = true
-                }
-                
-                if let loc = locationService.currentLocation {
-                    withAnimation {
-                        region.center = CLLocationCoordinate2D(
-                            latitude: loc.latitude,
-                            longitude: loc.longitude
-                        )
+            // 3. User Location Pulse (Blue Dot extension)
+            if showPulse {
+                Circle()
+                    .stroke(Color.purple, lineWidth: 2)
+                    .frame(width: 20, height: 20)
+                    .scaleEffect(4) // Scale up 4x
+                    .opacity(0)     // Fade out
+                    .onAppear {
+                        // Reset state after animation
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            self.showPulse = false
+                        }
                     }
+            }
+            
+            // 4. Custom Top Bar (Floating Overlay)
+            HStack {
+                Image(systemName: "location.north.fill")
+                    .foregroundColor(.purple)
+                Text("Fletcher")
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                Spacer()
+                
+                Toggle("", isOn: Binding(
+                    get: { locationService.isTracking },
+                    set: { isTracking in
+                        if isTracking {
+                            locationService.startTracking()
+                        } else {
+                            locationService.stopTracking()
+                        }
+                    }
+                ))
+                .labelsHidden()
+                .toggleStyle(SwitchToggleStyle(tint: .purple))
+            }
+            .padding()
+            .padding(.top, 44) // Status bar spacing
+            // Wiggle Animation
+            .keyframeAnimator(initialValue: 0, trigger: wiggleTrigger) { content, value in
+                content.rotationEffect(.degrees(Double(value)))
+                    .offset(x: Double(value) * 1.5) // Slight x offset with rotation
+            } keyframes: { _ in
+                KeyframeTrack {
+                    CubicKeyframe(0, duration: 0.0)
+                    CubicKeyframe(-3, duration: 0.05)
+                    CubicKeyframe(3, duration: 0.05)
+                    CubicKeyframe(-3, duration: 0.05)
+                    CubicKeyframe(3, duration: 0.05)
+                    CubicKeyframe(0, duration: 0.05)
                 }
-            }) {
-                Image(systemName: "location.fill")
-                    .padding()
-                    .background(Color.white.opacity(0.9))
-                    .clipShape(Circle())
-                    .shadow(radius: 4)
+            }
+            
+            // 5. Action Buttons (Zoom / Location)
+            VStack(spacing: 12) {
+                // Zoom In Button
+                Button(action: {
+                   zoomIn()
+                }) {
+                    Image(systemName: "plus")
+                        .font(.title2)
+                        .frame(width: 24, height: 24)
+                        .padding()
+                        .background(Color.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .shadow(radius: 4)
+                }
+                
+                // Zoom Out Button
+                Button(action: {
+                    zoomOut()
+                }) {
+                    Image(systemName: "minus")
+                        .font(.title2)
+                        .frame(width: 24, height: 24)
+                        .padding()
+                        .background(Color.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .shadow(radius: 4)
+                }
+                
+                // Location Button (Recenter/Log)
+                Button(action: {
+                    handleLocationTap()
+                }) {
+                    Image(systemName: "location.fill")
+                        .font(.title2)
+                        .frame(width: 24, height: 24)
+                        .padding()
+                        .background(Color.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .shadow(radius: 4)
+                }
             }
             .padding()
             .padding(.bottom, 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        }
+    }
+    
+    private func handleLocationTap() {
+        if !locationService.isTracking {
+            // Trigger feedback animations
+            wiggleTrigger += 1
+            overlayPulseTrigger = true
+            
+            // Reset overlay pulse after short delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                overlayPulseTrigger = false
+            }
+            return
+        }
+        
+        // Normal Behavior
+        locationService.manuallyLogLocation() // Log entry on tap
+        
+        // Trigger Pulse
+        withAnimation(.easeOut(duration: 0.8)) {
+            showPulse = true
+        }
+        
+        if let loc = locationService.currentLocation {
+             withAnimation {
+                 position = .region(MKCoordinateRegion(
+                     center: CLLocationCoordinate2D(latitude: loc.latitude, longitude: loc.longitude),
+                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                 ))
+             }
+        }
+    }
+    
+    private func zoomIn() {
+        if let region = position.region {
+            var newSpan = region.span
+            newSpan.latitudeDelta /= zoomFactor
+            newSpan.longitudeDelta /= zoomFactor
+            withAnimation {
+                position = .region(MKCoordinateRegion(center: region.center, span: newSpan))
+            }
+        }
+    }
+    
+    private func zoomOut() {
+        if let region = position.region {
+            var newSpan = region.span
+            newSpan.latitudeDelta *= zoomFactor
+            newSpan.longitudeDelta *= zoomFactor
+            withAnimation {
+                position = .region(MKCoordinateRegion(center: region.center, span: newSpan))
+            }
         }
     }
 }
