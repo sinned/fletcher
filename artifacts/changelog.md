@@ -1,6 +1,11 @@
 # Changelog
 
 ## [1.2.3] - 2025-12-16
+## [Server 1.1.2] - 2025-12-16
+
+### Fixed
+- **MCP Stream**: Changed Content-Type Parser to pass-through mode instead of buffer mode. This ensures `req.raw` stream remains readable for the MCP SDK `handlePostMessage` call.
+
 ## [Server 1.1.1] - 2025-12-16
 
 ### Fixed

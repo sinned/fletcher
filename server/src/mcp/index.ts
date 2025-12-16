@@ -28,9 +28,9 @@ async function logAccess(userId: string, endpoint: string, count: number, params
 // Plugin Definition
 export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
-    // Disable default body parsing for this context to allow SDK to read raw stream
-    fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
-        done(null, body);
+    // Override default JSON parser to preserve the stream for the SDK
+    fastify.addContentTypeParser('application/json', (req, payload, done) => {
+        done(null, payload);
     });
 
     fastify.get('/sse', async (req, res) => {

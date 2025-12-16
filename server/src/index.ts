@@ -25,7 +25,7 @@ server.register(require('@fastify/formbody'));
 // No prefix, because it handles /sse and /messages directly
 server.register(mcpServerPlugin);
 
-const SERVER_VERSION = '1.1.1';
+const SERVER_VERSION = '1.1.2';
 
 // Health check
 server.get('/health', async (request, reply) => {
