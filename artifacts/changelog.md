@@ -1,7 +1,13 @@
 # Changelog
 
 ## [1.2.3] - 2025-12-16
+## [Server 1.1.0] - 2025-12-16
 
+### Changed
+- **Validation**: Exposed detailed Zod validation errors in 400 responses to aid debugging.
+- **Auth**: Updated `mcp/sse` endpoint to accept `token` via query parameter for single-URL connection.
+
+## [1.2.3] - 2025-12-16
 ### Added
 - **Server**: Root route now returns user and location counts.
 - **Server**: Health check verifies database connectivity.

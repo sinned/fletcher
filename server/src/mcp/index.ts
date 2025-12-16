@@ -29,10 +29,17 @@ export const setupMcp = (fastify: FastifyInstance) => {
 
     fastify.get('/sse', async (req, res) => {
         // 1. Auth
-        const authHeader = req.headers['authorization'];
-        if (!authHeader) return res.code(401).send({ error: 'Missing Authorization header' });
+        let token: string | undefined;
 
-        const token = authHeader.replace('Bearer ', '');
+        const authHeader = req.headers['authorization'];
+        if (authHeader) {
+            token = authHeader.replace('Bearer ', '');
+        } else {
+            token = (req.query as any).token;
+        }
+
+        if (!token) return res.code(401).send({ error: 'Missing Authorization header or token query parameter' });
+
         const userId = await validateMCPToken(token);
 
         if (!userId) return res.code(403).send({ error: 'Invalid token' });

@@ -84,9 +84,12 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
                 count: locations.length,
                 inserted_at: new Date()
             };
-        } catch (err) {
+        } catch (err: any) {
             fastify.log.error(err);
-            reply.code(400).send({ error: 'Invalid data' });
+            if (err instanceof z.ZodError) {
+                return reply.code(400).send({ error: 'Validation Error', details: err.issues });
+            }
+            return reply.code(400).send({ error: 'Invalid data', details: err.message });
         }
     });
 
