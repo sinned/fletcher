@@ -1,6 +1,13 @@
 # Changelog
 
 ## [1.2.3] - 2025-12-16
+## [1.2.4] - 2025-12-16
+
+### Fixed
+- **Sync Auth**: Implemented automatic re-registration when an invalid API key (401) is detected to heal broken auth states.
+- **Sync Data**: Sanitized location payload and ensured positive accuracy values to prevent server validation errors.
+- **UI**: Fixed "Copy URL" button in connection screen by using borderless button style.
+
 ## [Server 1.1.0] - 2025-12-16
 
 ### Changed

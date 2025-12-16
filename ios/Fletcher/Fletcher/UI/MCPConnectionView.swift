@@ -72,7 +72,7 @@ struct MCPConnectionView: View {
                 Form {
                     if let generated = generatedToken {
                         Section(header: Text("Success!")) {
-                            Text("Copy these details to your Assistant Settings. This token will only be shown once.")
+                            Text("Copy this URL to your Assistant Settings. This token will only be shown once.")
                                 .font(.caption)
                                 .foregroundColor(.orange)
                             
@@ -81,36 +81,23 @@ struct MCPConnectionView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 HStack {
-                                    Text(generated.sse_url)
-                                        .font(.system(.body, design: .monospaced))
-                                    Spacer()
-                                    Button(action: {
-                                        UIPasteboard.general.string = generated.sse_url
-                                    }) {
-                                        Image(systemName: "doc.on.doc")
-                                    }
-                                }
-                            }
-                            
-                            VStack(alignment: .leading) {
-                                Text("Token")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                HStack {
-                                    Text(generated.token)
+                                    Text(constructMCPURL(token: generated.token))
                                         .font(.system(.body, design: .monospaced))
                                         .lineLimit(1)
                                         .truncationMode(.middle)
+                                        .textSelection(.enabled)
                                     Spacer()
                                     Button(action: {
-                                        UIPasteboard.general.string = generated.token
+                                        UIPasteboard.general.string = constructMCPURL(token: generated.token)
                                     }) {
                                         Image(systemName: "doc.on.doc")
+                                            .foregroundColor(.blue)
                                     }
+                                    .buttonStyle(BorderlessButtonStyle())
                                 }
                             }
                             
-                            Text(generated.instructions)
+                            Text("Instructions:\n1. Open Claude Desktop Settings\n2. Go to Developer → Edit Config\n3. Add this SSE server with the URL above.")
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
@@ -179,5 +166,9 @@ struct MCPConnectionView: View {
                 errorMessage = "Failed to revoke: \(error.localizedDescription)"
             }
         }
+    }
+    private func constructMCPURL(token: String) -> String {
+        let cleanURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return "\(cleanURL)/sse?token=\(token)"
     }
 }

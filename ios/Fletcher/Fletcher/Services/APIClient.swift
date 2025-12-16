@@ -34,7 +34,24 @@ class APIClient: ObservableObject {
         }
         
         // Wrap in object
-        let body = ["locations": unsynced]
+        // Use a DTO to send only server-expected fields and ensure validity
+        struct LocationDTO: Encodable {
+            let latitude: Double
+            let longitude: Double
+            let accuracy: Double
+            let timestamp: Date
+        }
+        
+        let payload = unsynced.map { loc in
+            LocationDTO(
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                accuracy: max(loc.accuracy, 1.0), // Ensure positive for server schema
+                timestamp: loc.timestamp
+            )
+        }
+        
+        let body = ["locations": payload]
         
         do {
             let encoder = JSONEncoder()
@@ -61,16 +78,33 @@ class APIClient: ObservableObject {
                 return
             }
             
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                // Mark as synced
-                let ids = unsynced.map { $0.id }
-                DispatchQueue.main.async {
-                    LocationStore.shared.markSynced(ids)
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 200 {
+                    // Mark as synced
+                    let ids = unsynced.map { $0.id }
+                    DispatchQueue.main.async {
+                        LocationStore.shared.markSynced(ids)
+                    }
+                    print("Synced \(ids.count) locations")
+                } else if httpResponse.statusCode == 401 {
+                    print("401 Unauthorized. Clearing key and re-registering.")
+                    UserDefaults.standard.removeObject(forKey: "apiKey")
+                    DispatchQueue.main.async {
+                        self.lastSyncError = "Auth invalid. Re-registering..." 
+                    }
+                    Task {
+                        await self.registerDevice()
+                    }
+                } else {
+                    let errorMsg: String
+                    if let data = data, let str = String(data: data, encoding: .utf8) {
+                        errorMsg = str
+                    } else {
+                        errorMsg = String(describing: response)
+                    }
+                    print("Sync server error: \(errorMsg)")
+                    DispatchQueue.main.async { self.lastSyncError = "Server Error: \(errorMsg)" }
                 }
-                print("Synced \(ids.count) locations")
-            } else {
-                print("Sync server error: \(String(describing: response))")
-                DispatchQueue.main.async { self.lastSyncError = "Server Error: \(String(describing: response))" }
             }
         }.resume()
     }
