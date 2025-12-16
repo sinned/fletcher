@@ -41,11 +41,8 @@ struct MainView: View {
 struct MapView: View {
     @EnvironmentObject var locationService: BackgroundLocationService
     
-    // Default to San Francisco
-    @State private var position: MapCameraPosition = .region(MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
-        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-    ))
+    // Default to User Location
+    @State private var position: MapCameraPosition = .userLocation(fallback: .automatic)
     
     @State private var showPulse = false
     
@@ -67,6 +64,12 @@ struct MapView: View {
             }
             .onMapCameraChange { context in
                 visibleRegion = context.region
+            }
+            .onAppear {
+                if locationService.authorizationStatus == .authorizedAlways || locationService.authorizationStatus == .authorizedWhenInUse {
+                    // Force a snap if we are authorized
+                   position = .userLocation(fallback: .automatic)
+                }
             }
             .mapControls {
                 // Disable default controls
