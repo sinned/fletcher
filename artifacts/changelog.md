@@ -23,6 +23,7 @@ All notable changes to the Fletcher iOS App project will be documented in this f
 - **Assets**: Fixed missing `AccentColor` and `AppIcon` warnings by restoring asset catalog structure.
 - **App Icon**: Generated all required icon sizes (iPhone 20pt-60pt @ 2x/3x) and updated asset catalog configuration to resolve missing icon issue.
 - **iPad Icons**: Generated required iPad icon sizes (76x76@2x, 83.5x83.5@2x) and added to asset catalog.
+- **Sync Icons**: Updated History list to clearer icons: Blue Cloud+Arrow (Synced) vs Orange Broken Cloud (Not Synced).
 - **Location Snap**: Restored "Snap to user" functionality by using `.userLocation` camera mode.
 - **Startup**: App now automatically snaps to the user's current location on launch (if authorized).
 

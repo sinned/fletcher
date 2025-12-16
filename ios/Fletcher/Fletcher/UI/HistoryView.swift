@@ -29,11 +29,11 @@ struct HistoryView: View {
                                         .font(.subheadline)
                                     Spacer()
                                     if location.synced {
-                                        Image(systemName: "checkmark.cloud.fill")
-                                            .foregroundColor(.green)
+                                        Image(systemName: "icloud.and.arrow.up")
+                                            .foregroundColor(.blue)
                                     } else {
-                                        Image(systemName: "cloud.fill")
-                                            .foregroundColor(.gray)
+                                        Image(systemName: "icloud.slash")
+                                            .foregroundColor(.orange)
                                     }
                                 }
                             }
