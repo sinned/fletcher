@@ -118,40 +118,74 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             };
         });
 
-        // Tool: Get History with Range
+        // Tool: Get History with Range or Recent
         mcp.tool('get_location_history',
             {
-                start_date: z.string(),
-                end_date: z.string()
+                start_date: z.string().optional().describe("ISO date string. If provided, end_date is also required."),
+                end_date: z.string().optional()
             },
             async ({ start_date, end_date }) => {
-                let start = new Date(start_date);
-                let end = new Date(end_date);
+                let features: any[] = [];
+                let logDetails: any = {};
 
-                // Enforce policies
-                const now = new Date();
-                if (end > now) end = now;
+                if (start_date && end_date) {
+                    let start = new Date(start_date);
+                    let end = new Date(end_date);
 
-                // Limit range to historyDays
-                const maxStart = new Date(now.getTime() - historyDays * 24 * 60 * 60 * 1000);
-                if (start < maxStart) start = maxStart;
+                    // Enforce policies
+                    const now = new Date();
+                    if (end > now) end = now;
 
-                if (start > end) {
-                    return { content: [{ type: "text", text: "Invalid range or restricted by privacy settings." }] };
+                    // Limit range to historyDays
+                    const maxStart = new Date(now.getTime() - historyDays * 24 * 60 * 60 * 1000);
+                    if (start < maxStart) start = maxStart;
+
+                    if (start > end) {
+                        return { content: [{ type: "text", text: "Invalid range or restricted by privacy settings." }] };
+                    }
+
+                    const history = await getLocationHistory(userId, start, end);
+                    features = history.map((loc: any) => {
+                        const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                        return {
+                            type: "Feature",
+                            geometry: { type: "Point", coordinates: [lon, lat] },
+                            properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                        };
+                    });
+                    logDetails = { type: 'range', start_date, end_date };
+                } else {
+                    // Fallback: Get recent 10 points
+                    // We need to import getRecentLocations. I'll need to update imports first, 
+                    // but since I can't do multiple file edits in one turn easily if I didn't plan it...
+                    // Wait, I can't import `getRecentLocations` if it's not imported at the top.
+                    // I'll assume I update imports in a separate step or use `require`? No, ESM/TS.
+                    // I will update the imports in a prior step or this step if possible?
+                    // I cannot edit imports and this block at the same time efficiently with replace_file_content unless I replace the whole file.
+                    // I will perform the import update in a separate call immediately after this or before.
+                    // Actually, I'll return the logic here and let the compiler fail?
+                    // No, I'll update using the new function `getRecentLocations`.
+                    // To be safe, I should update imports *first*.
+                    // I will cancel this tool call and update imports first?
+                    // No, I will trust the planner order.
+                    // I will perform the import update as a separate `replace_file_content` call in THIS turn (parallel).
+
+                    const { getRecentLocations } = await import('../models/location'); // Dynamic import to avoid top-level change conflict?
+                    // Or just use the imported version if I update the top.
+
+                    const history = await getRecentLocations(userId, 10);
+                    features = history.map((loc: any) => {
+                        const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                        return {
+                            type: "Feature",
+                            geometry: { type: "Point", coordinates: [lon, lat] },
+                            properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                        };
+                    });
+                    logDetails = { type: 'recent', count: 10 };
                 }
 
-                const history = await getLocationHistory(userId, start, end);
-
-                const features = history.map((loc: any) => {
-                    const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
-                    return {
-                        type: "Feature",
-                        geometry: { type: "Point", coordinates: [lon, lat] },
-                        properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
-                    };
-                });
-
-                await logAccess(userId, 'get_location_history', features.length, { start_date, end_date });
+                await logAccess(userId, 'get_location_history', features.length, logDetails);
 
                 return {
                     content: [{

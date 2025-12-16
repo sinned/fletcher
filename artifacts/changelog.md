@@ -1,6 +1,11 @@
 # Changelog
 
 ## [1.2.3] - 2025-12-16
+## [Server 1.1.3] - 2025-12-16
+
+### Changed
+- **MCP Tool**: `get_location_history` date arguments are now optional. If omitted, the server defaults to returning the last 10 location points (recent history).
+
 ## [Server 1.1.2] - 2025-12-16
 
 ### Fixed

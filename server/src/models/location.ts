@@ -62,6 +62,22 @@ export const getLocationHistory = async (userId: string, start: Date, end: Date)
     return res.rows;
 };
 
+export const getRecentLocations = async (userId: string, limit: number) => {
+    const res = await query(
+        `SELECT 
+       ST_Y(point::geometry) as latitude, 
+       ST_X(point::geometry) as longitude, 
+       accuracy, 
+       timestamp 
+     FROM locations 
+     WHERE user_id = $1 
+     ORDER BY timestamp DESC 
+     LIMIT $2`,
+        [userId, limit]
+    );
+    return res.rows.reverse(); // Return in chronological order (oldest to newest) for history context
+};
+
 export const deleteLocation = async (id: string, userId: string) => {
     const res = await query(
         'DELETE FROM locations WHERE id = $1 AND user_id = $2 RETURNING id',
