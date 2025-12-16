@@ -2,7 +2,7 @@
 
 All notable changes to the Fletcher iOS App project will be documented in this file.
 
-## [0.1.3] - 2025-12-15
+## [0.1.3] - 2025-12-15 21:22 PST
 
 ### Added
 - **iPad Icons**: Generated required iPad icon sizes (76x76@2x, 83.5x83.5@2x) and added to asset catalog.
@@ -13,14 +13,14 @@ All notable changes to the Fletcher iOS App project will be documented in this f
 - **Location Snap**: Restored "Snap to user" functionality by using `.userLocation` camera mode.
 - **Startup**: App now automatically snaps to the user's current location on launch (if authorized).
 
-## [0.1.2] - 2025-12-15
+## [0.1.2] - 2025-12-15 21:09 PST
 
 ### Changed
 - **Version**: Bumped version to 0.1.2.
 - **Settings**: Added version display footer to the Settings screen.
 - **Settings**: Implemented "Delete All History" functionality with a confirmation popup.
 
-## [0.1.1] - 2025-12-15
+## [0.1.1] - 2025-12-15 20:00 PST
 
 ### Added
 - **App Icon**: Updated app icon to new "Arrow/Fletcher" design.
