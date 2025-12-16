@@ -25,9 +25,16 @@ async function logAccess(userId: string, endpoint: string, count: number, params
     );
 }
 
-export const setupMcp = (fastify: FastifyInstance) => {
+// Plugin Definition
+export const mcpServerPlugin = async (fastify: FastifyInstance) => {
+
+    // Disable default body parsing for this context to allow SDK to read raw stream
+    fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+        done(null, body);
+    });
 
     fastify.get('/sse', async (req, res) => {
+        // ... (Auth Logic same as before)
         // 1. Auth
         let token: string | undefined;
 

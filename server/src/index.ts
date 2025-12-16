@@ -13,16 +13,19 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 import mobileRoutes from './routes/mobile';
 import mcpApiRoutes from './routes/mcp_api';
-import { setupMcp } from './mcp';
+import { mcpServerPlugin } from './mcp';
 
 // ... imports
 
 server.register(mobileRoutes, { prefix: '/api' });
 server.register(mcpApiRoutes, { prefix: '/api/mcp' }); // Mounted at /api/mcp
 server.register(require('@fastify/formbody'));
-setupMcp(server);
 
-const SERVER_VERSION = '1.1.0';
+// Register MCP Server Plugin
+// No prefix, because it handles /sse and /messages directly
+server.register(mcpServerPlugin);
+
+const SERVER_VERSION = '1.1.1';
 
 // Health check
 server.get('/health', async (request, reply) => {

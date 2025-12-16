@@ -1,6 +1,11 @@
 # Changelog
 
 ## [1.2.3] - 2025-12-16
+## [Server 1.1.1] - 2025-12-16
+
+### Fixed
+- **MCP Connection**: Fixed an issue where the server was consuming the JSON body before the MCP SDK could read it, causing connection errors in Claude. Refactored MCP routes into an isolated plugin with custom content parsing `parseAs: 'buffer'`.
+
 ## [1.2.4] - 2025-12-16
 
 ### Fixed
