@@ -22,15 +22,17 @@ server.register(mcpApiRoutes, { prefix: '/api/mcp' }); // Mounted at /api/mcp
 server.register(require('@fastify/formbody'));
 setupMcp(server);
 
+const SERVER_VERSION = '1.1.0';
+
 // Health check
 server.get('/health', async (request, reply) => {
     try {
         await query('SELECT 1');
-        return { status: 'ok', db: 'connected' };
+        return { status: 'ok', db: 'connected', version: SERVER_VERSION };
     } catch (e) {
         server.log.error(e);
         reply.code(500);
-        return { status: 'error', db: 'disconnected' };
+        return { status: 'error', db: 'disconnected', version: SERVER_VERSION };
     }
 });
 
@@ -42,6 +44,7 @@ server.get('/', async (request, reply) => {
 
         return {
             status: 'ok',
+            version: SERVER_VERSION,
             users: parseInt(usersRes.rows[0].count),
             locations: parseInt(locationsRes.rows[0].count)
         };
