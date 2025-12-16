@@ -16,10 +16,17 @@ export default async function locationRoutes(fastify: FastifyInstance) {
         });
 
         try {
-            const { locations } = BodySchema.parse(request.body);
+            // Get user ID from header
+            const userId = request.headers['x-user-id'] as string;
+            if (!userId) { // Simple check, real app would validate UUID format
+                return reply.code(400).send({ error: 'Missing X-User-Id header' });
+            }
 
-            // In MVP, userId is hardcoded or from header
-            const userId = '00000000-0000-0000-0000-000000000000';
+            // Ensure user exists (for FK constraint)
+            const { ensureUser } = await import('../models/user');
+            await ensureUser(userId);
+
+            const { locations } = BodySchema.parse(request.body);
 
             await saveLocations(userId, locations);
 
@@ -27,6 +34,29 @@ export default async function locationRoutes(fastify: FastifyInstance) {
         } catch (err) {
             fastify.log.error(err);
             reply.code(400).send({ error: 'Invalid data' });
+        }
+    });
+
+    // Delete location
+    fastify.delete('/locations/:id', async (request, reply) => {
+        const userId = request.headers['x-user-id'] as string;
+        if (!userId) {
+            return reply.code(400).send({ error: 'Missing X-User-Id header' });
+        }
+
+        const { id } = request.params as { id: string };
+        const { deleteLocation } = await import('../models/location');
+
+        try {
+            const deleted = await deleteLocation(id, userId);
+            if (deleted) {
+                return { status: 'ok', id };
+            } else {
+                return reply.code(404).send({ error: 'Location not found or access denied' });
+            }
+        } catch (err) {
+            fastify.log.error(err);
+            reply.code(500).send({ error: 'Internal server error' });
         }
     });
 }

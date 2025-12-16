@@ -27,11 +27,13 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
     
     func startTracking() {
         locationManager.startMonitoringSignificantLocationChanges()
+        locationManager.startMonitoringVisits() // Battery optimization: Visit Monitoring
         isTracking = true
     }
     
     func stopTracking() {
         locationManager.stopMonitoringSignificantLocationChanges()
+        locationManager.stopMonitoringVisits()
         isTracking = false
     }
     
@@ -75,6 +77,33 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
         
         // Trigger sync if needed (naive approach: sync every few updates or timer)
         // For MVP, simplistic sync check
+        api.syncLocations()
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
+        // Create a LocationPoint for the arrival
+        if visit.arrivalDate != Date.distantPast {
+            let arrivalPoint = LocationPoint(
+                latitude: visit.coordinate.latitude,
+                longitude: visit.coordinate.longitude,
+                accuracy: visit.horizontalAccuracy,
+                timestamp: visit.arrivalDate
+            )
+            store.addLocation(arrivalPoint)
+        }
+        
+        // Create a LocationPoint for the departure
+        if visit.departureDate != Date.distantFuture {
+            let departurePoint = LocationPoint(
+                latitude: visit.coordinate.latitude,
+                longitude: visit.coordinate.longitude,
+                accuracy: visit.horizontalAccuracy,
+                timestamp: visit.departureDate
+            )
+            store.addLocation(departurePoint)
+        }
+        
+        // Trigger sync
         api.syncLocations()
     }
 }

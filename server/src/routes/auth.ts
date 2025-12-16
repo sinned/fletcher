@@ -1,52 +1,78 @@
 import { FastifyInstance } from 'fastify';
+import { createAuthCode, validateAuthCode, createMCPToken } from '../models/auth';
+import { ensureUser } from '../models/user';
 
 export default async function authRoutes(fastify: FastifyInstance) {
-    // OAuth2 Authorize Endpoint
-    // Client (Claude) redirects user here
-    fastify.get('/oauth/authorize', async (request, reply) => {
-        // In a real app, this would show a login screen or redirect to app
-        // For MVP, we render a simple page to "approve"
-        const { client_id, redirect_uri, state } = request.query as any;
+  // OAuth2 Authorize Endpoint
+  fastify.get('/oauth/authorize', async (request, reply) => {
+    const { client_id, redirect_uri, state, user_id } = request.query as any;
 
-        // Simple HTML response
-        reply.type('text/html').send(`
-      <html>
-        <body>
-          <h1>Connect Fletcher</h1>
-          <p>Authorize Claude to access your location?</p>
-          <form action="/auth/oauth/approve" method="post">
-            <input type="hidden" name="redirect_uri" value="${redirect_uri}" />
-            <input type="hidden" name="state" value="${state}" />
-            <button type="submit">Approve</button>
-          </form>
-        </body>
-      </html>
-    `);
-    });
+    // In a real flow, checking user_id like this is insecure (phishing risk).
+    // But for MVP device-based auth, we accept it contextually.
+    // We'll trust the user_id exists if the client sends it.
+    // Or we should redirect to a "Connect" page where user enters a code from the app?
+    // TDD v2 says: GET /auth/oauth/authorize ... Auto-Approve for MVP.
 
-    // Handle approval
-    fastify.post('/oauth/approve', async (request, reply) => {
-        const { redirect_uri, state } = request.body as any;
-        const code = 'mock_auth_code_' + Date.now();
+    // Actually, GET request shouldn't enforce user_id presence if we plan to show UI.
+    // But since we are Auto-Approving, we need the context immediately.
 
-        // Redirect back to client
-        const target = new URL(redirect_uri);
-        target.searchParams.set('code', code);
-        if (state) target.searchParams.set('state', state);
+    // If user_id missing, we can't link.
+    if (!user_id && !request.body) {
+      return reply.type('text/html').send(`Error: Missing user_id context. Please start flow from Fletcher App.`);
+    }
 
-        reply.redirect(target.toString());
-    });
+    // Validate Client ID (Mock for now)
+    if (client_id !== 'claude') {
+      return reply.code(400).send('Invalid Client ID');
+    }
 
-    // OAuth2 Token Endpoint
-    // Client exchanges code for token
-    fastify.post('/oauth/token', async (request, reply) => {
-        const { code, client_id, client_secret } = request.body as any;
+    // Auto-approve flow
+    try {
+      // Ensure user exists (optional check, but good for data integrity)
+      try {
+        await ensureUser(user_id);
+      } catch (e) {
+        return reply.code(400).send('User not found. Please register in app first.');
+      }
 
-        // Return mock token
-        return {
-            access_token: 'mock_access_token_' + Date.now(),
-            token_type: 'Bearer',
-            expires_in: 3600
-        };
-    });
+      const code = await createAuthCode(user_id, client_id, redirect_uri);
+
+      const target = new URL(redirect_uri);
+      target.searchParams.set('code', code);
+      if (state) target.searchParams.set('state', state);
+
+      return reply.redirect(target.toString());
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send('Internal Server Error');
+    }
+  });
+
+  // OAuth2 Token Endpoint
+  fastify.post('/oauth/token', async (request, reply) => {
+    const { code, client_id, client_secret, grant_type } = request.body as any;
+
+    if (grant_type !== 'authorization_code') {
+      return reply.code(400).send({ error: 'unsupported_grant_type' });
+    }
+
+    try {
+      const userId = await validateAuthCode(code, client_id);
+      if (!userId) {
+        return reply.code(400).send({ error: 'invalid_grant' });
+      }
+
+      const { token, expiresAt } = await createMCPToken(userId, 'claude');
+
+      return {
+        access_token: token,
+        token_type: 'Bearer',
+        expires_in: Math.floor((expiresAt.getTime() - Date.now()) / 1000),
+        scope: 'location:read'
+      };
+    } catch (err) {
+      fastify.log.error(err);
+      return reply.code(500).send({ error: 'server_error' });
+    }
+  });
 }

@@ -61,3 +61,11 @@ export const getLocationHistory = async (userId: string, start: Date, end: Date)
     );
     return res.rows;
 };
+
+export const deleteLocation = async (id: string, userId: string) => {
+    const res = await query(
+        'DELETE FROM locations WHERE id = $1 AND user_id = $2 RETURNING id',
+        [id, userId]
+    );
+    return res.rowCount && res.rowCount > 0;
+};

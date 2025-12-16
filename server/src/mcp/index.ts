@@ -1,90 +1,172 @@
 import { FastifyInstance } from 'fastify';
-import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { getLatestLocation, getLocationHistory } from '../models/location';
+import { validateMCPToken } from '../models/auth';
+import { getPrivacySettings } from '../models/user';
+import { query } from '../db';
+
+const sessions = new Map<string, SSEServerTransport>();
+
+// Precision Logic
+function applyPrecision(lat: number, lon: number, level: string): [number, number] {
+    if (level === 'high') return [lat, lon];
+    if (level === 'medium') return [Number(lat.toFixed(3)), Number(lon.toFixed(3))]; // ~100m
+    if (level === 'low') return [Number(lat.toFixed(2)), Number(lon.toFixed(2))]; // ~1km
+    return [lat, lon];
+}
+
+async function logAccess(userId: string, endpoint: string, count: number, params?: any) {
+    await query(
+        `INSERT INTO access_logs (user_id, assistant_type, endpoint, location_count, query_params)
+         VALUES ($1, 'claude', $2, $3, $4)`,
+        [userId, endpoint, count, params ? JSON.stringify(params) : null]
+    );
+}
 
 export const setupMcp = (fastify: FastifyInstance) => {
-    const mcp = new McpServer({
-        name: 'Fletcher',
-        version: '1.0.0',
-    });
 
-    // Resource: Current Location
-    mcp.resource(
-        'current-location',
-        'fletcher://location/current',
-        async (uri) => {
-            // In a real app, we'd get user ID from extra context or headers
-            // For MVP, we'll use a hardcoded demo user ID or pass it in headers
-            const userId = '00000000-0000-0000-0000-000000000000'; // Placeholder
+    fastify.get('/sse', async (req, res) => {
+        // 1. Auth
+        const authHeader = req.headers['authorization'];
+        if (!authHeader) return res.code(401).send({ error: 'Missing Authorization header' });
+
+        const token = authHeader.replace('Bearer ', '');
+        const userId = await validateMCPToken(token);
+
+        if (!userId) return res.code(403).send({ error: 'Invalid token' });
+
+        // Retrieve privacy settings for this session context
+        const privacy = await getPrivacySettings(userId);
+        const precision = privacy?.privacy_settings?.precision_level || 'medium';
+        const historyDays = privacy?.privacy_settings?.history_access_days || 7;
+
+        // 2. Create Server
+        const mcp = new McpServer({
+            name: 'Fletcher',
+            version: '2.0.0',
+        });
+
+        // Resource: Current Location
+        mcp.resource('current-location', 'fletcher://location/current', async (uri) => {
             const loc = await getLatestLocation(userId);
+            if (!loc) return { contents: [] };
+
+            const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+
+            await logAccess(userId, 'current-location', 1);
+
             return {
                 contents: [{
                     uri: uri.href,
-                    text: JSON.stringify(loc),
-                    mimeType: "application/json"
+                    text: JSON.stringify({
+                        type: "Feature",
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: {
+                            accuracy: loc.accuracy,
+                            timestamp: loc.timestamp,
+                            precision_level: precision
+                        }
+                    }),
+                    mimeType: "application/geo+json"
                 }]
             };
-        }
-    );
+        });
 
-    // Tools
-    mcp.tool(
-        'find-nearby',
-        {
-            category: z.string(),
-            radius_meters: z.number().optional()
-        },
-        async ({ category, radius_meters }) => {
+        // Resource: History (Last 24h, limited by settings)
+        mcp.resource('location-history', 'fletcher://location/history', async (uri) => {
+            const end = new Date();
+            // Default resource is 24h, but restricted by user setting if < 1 day (e.g. 0)
+            const days = Math.min(1, historyDays);
+            const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+            const history = await getLocationHistory(userId, start, end);
+
+            // Apply precision to all
+            const features = history.map((loc: any) => {
+                const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                return {
+                    type: "Feature",
+                    geometry: { type: "Point", coordinates: [lon, lat] },
+                    properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                };
+            });
+
+            await logAccess(userId, 'location-history', features.length);
+
             return {
-                content: [{
-                    type: "text",
-                    text: `Finding ${category} within ${radius_meters || 1000}m (Not implemented in MVP)`
+                contents: [{
+                    uri: uri.href,
+                    text: JSON.stringify({ type: "FeatureCollection", features }),
+                    mimeType: "application/geo+json"
                 }]
+            };
+        });
+
+        // Tool: Get History with Range
+        mcp.tool('get_location_history',
+            {
+                start_date: z.string(),
+                end_date: z.string()
+            },
+            async ({ start_date, end_date }) => {
+                let start = new Date(start_date);
+                let end = new Date(end_date);
+
+                // Enforce policies
+                const now = new Date();
+                if (end > now) end = now;
+
+                // Limit range to historyDays
+                const maxStart = new Date(now.getTime() - historyDays * 24 * 60 * 60 * 1000);
+                if (start < maxStart) start = maxStart;
+
+                if (start > end) {
+                    return { content: [{ type: "text", text: "Invalid range or restricted by privacy settings." }] };
+                }
+
+                const history = await getLocationHistory(userId, start, end);
+
+                const features = history.map((loc: any) => {
+                    const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                    return {
+                        type: "Feature",
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                    };
+                });
+
+                await logAccess(userId, 'get_location_history', features.length, { start_date, end_date });
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({ type: "FeatureCollection", features })
+                    }]
+                }
             }
-        }
-    );
+        );
 
-    // Fastify route for SSE
-    fastify.get('/sse', async (req, res) => {
-        // Manually handle SSE since McpServer transport expects raw req/res or similar
-        // The SSEServerTransport needs to be hooked up
-
-        // Actually, SDK's SSEServerTransport is designed for express/node http.
-        // Fastify's req/res are wrappers. We can access raw via req.raw and res.raw
-
+        // 3. Transport
         const transport = new SSEServerTransport('/messages', res.raw);
         await mcp.connect(transport);
+
+        const sessionId = (transport as any).sessionId;
+        if (sessionId) sessions.set(sessionId, transport);
+
+        req.raw.on('close', () => {
+            if (sessionId) sessions.delete(sessionId);
+        });
     });
 
     fastify.post('/messages', async (req, res) => {
-        // This endpoint handles client messages (POST)
-        // The transport we created in /sse needs to handle this...
-        // But SSEServerTransport typically handles the POST itself?
-        // Looking at SDK examples (if I could), usually you separate them.
-        // The SSEServerTransport instance has a `handlePostMessage` method usually.
+        const sessionId = (req.query as any).sessionId;
+        if (!sessionId) return res.code(400).send('Missing sessionId');
 
-        // I will store the transport in a way we can access it, or create a new one?
-        // No, transport is per connection. 
-        // Actually, for SSE, the flow is:
-        // Client -> GET /sse -> Server keeps open.
-        // Client -> POST /messages -> Server handles message, sends response via SSE stream.
+        const transport = sessions.get(sessionId);
+        if (!transport) return res.code(404).send('Session not found');
 
-        // I need to implement a mechanism to route the POST to the correct transport.
-        // Since I can't easily see the SDK docs, I'll attempt a standard pattern.
-
-        // Use a map of session ID to transport? The SDK might handle this.
-        // For MVP, if the SDK is too opaque, I might just fallback to simple logic.
-
-        // However, let's try to do it right.
-        // If I look at `node_modules/@modelcontextprotocol/sdk/dist/cjs/server/sse.d.ts`:
-        // It likely exports `SSEServerTransport`.
-
-        // I'll leave the POST implementation as a todo or try to implement it simply.
-        // Actually, `SSEServerTransport` usually requires `handlePostMessage(req, res)`.
-        // I'll try that.
-
-        res.send({ status: 'Not implemented fully' });
+        await transport.handlePostMessage(req.raw, res.raw);
     });
 };

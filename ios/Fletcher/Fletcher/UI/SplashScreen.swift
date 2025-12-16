@@ -25,7 +25,7 @@ struct SplashScreen: View {
                         .fontWeight(.heavy)
                         .foregroundColor(.white)
                     
-                    Text("v0.1.3")
+                    Text("v0.1.4")
                         .font(.footnote)
                         .fontWeight(.medium)
                         .foregroundColor(.white.opacity(0.8))

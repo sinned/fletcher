@@ -1,44 +1,30 @@
 # Changelog
 
-All notable changes to the Fletcher iOS App project will be documented in this file.
-
-## [0.1.3] - 2025-12-15 21:22 PST
+## [1.1.0] - 2025-12-16
 
 ### Added
-- **iPad Icons**: Generated required iPad icon sizes (76x76@2x, 83.5x83.5@2x) and added to asset catalog.
-- **Sync Icons**: Updated History list to clearer icons: Blue Cloud+Arrow (Synced) vs Orange Broken Cloud (Not Synced).
-- **Project Structure**: Updated README to reflect current project paths.
+- **Server**: Implemented TDD v2.0 Architecture.
+- **Server**: API Key authentication for mobile endpoints.
+- **Server**: Privacy controls (precision reduction, history limits).
+- **Server**: Access Logging for all AI assistant interactions.
+- **Server**: OAuth 2.0 flow for MCP integration.
+- **Server**: New `mobile` routes (`/api/register`, `/api/locations`).
+- **MCP**: Updated MCP server to support v2 privacy and auth requirements.
 
 ### Changed
-- **Location Snap**: Restored "Snap to user" functionality by using `.userLocation` camera mode.
-- **Startup**: App now automatically snaps to the user's current location on launch (if authorized).
+- **Server**: Reset database schema to enforce stricter constraints.
+- **Server**: Refactored `auth` routes to use `oauth_codes` table.
 
-## [0.1.2] - 2025-12-15 21:09 PST
-
-### Changed
-- **Version**: Bumped version to 0.1.2.
-- **Settings**: Added version display footer to the Settings screen.
-- **Settings**: Implemented "Delete All History" functionality with a confirmation popup.
-
-## [0.1.1] - 2025-12-15 20:00 PST
-
-### Added
-- **App Icon**: Updated app icon to new "Arrow/Fletcher" design.
-- **History View**: Added specific map view for history, accessible via a new list/map toggle.
-- **Tracking Control**: Added a toggle switch to the Main View top bar to manually start/stop background location tracking.
-- **Visual Feedback**: Added "TRACKING OFF" overlay and greyscale map effect when tracking is disabled.
-- **Zoom Controls**: Added manual Zoom In (+) and Zoom Out (-) buttons to both Main Map and History Map.
-- **Interaction Feedback**: Added "Wiggle" animation to the toggle and "Pulse" animation to the overlay when attempting to log location while tracking is off.
-- **Version Display**: Added "v0.1.1" label to the Splash Screen.
-- **Zoom Logic**: Fixed a bug where zoom buttons became unresponsive after manually panning or zooming the map by tracking `visibleRegion`.
-- **Assets**: Fixed missing `AccentColor` and `AppIcon` warnings by restoring asset catalog structure.
-- **App Icon**: Generated all required icon sizes (iPhone 20pt-60pt @ 2x/3x) and updated asset catalog configuration to resolve missing icon issue.
-
-### Changed
-- **Map API**: Refactored `MainView` and `HistoryMapView` to use iOS 17+ MapKit APIs (`MapCameraPosition`, `MapContentBuilder`) to resolve deprecation warnings.
-- **UI Improvements**: Standardized size of map control buttons (Zoom, Location).
+## [1.0.1] - 2025-12-16
 
 ### Fixed
-- **Build System**: Resolved "Multiple commands produce Info.plist" error by removing duplicate reference in Build Phases.
-- **Interactions**: Fixed an issue where the Tracking Toggle was non-interactive due to a hit-testing overlay issue in the top bar.
-- **Logic**: Prevented manual location logging when tracking is explicitly turned off.
+- **App**: Corrected toggle logic to accurately reflect tracking state.
+- **App**: Resolved "Multiple commands produce Info.plist" build error.
+- **App**: Fixed map button sizing and added zoom controls.
+- **App**: Improved menu bar transparency and layout in `MainView`.
+
+### Added
+- **App**: Visual feedback (wiggle, pulse) for interactions.
+- **App**: Manual location logging with "bullseye" animation.
+- **App**: Display version number on Splash Screen.
+- **App**: New App Icon (Arrow Maker theme).
