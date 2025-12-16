@@ -29,11 +29,17 @@ class APIClient: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        if let key = apiKey {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+        
         // Wrap in object
         let body = ["locations": unsynced]
         
         do {
-            request.httpBody = try JSONEncoder().encode(body)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            request.httpBody = try encoder.encode(body)
         } catch {
             print("Encoding error: \(error)")
             DispatchQueue.main.async {
