@@ -2,7 +2,13 @@
 
 All notable changes to the Fletcher iOS App project will be documented in this file.
 
-## [Unreleased] - 2025-12-15
+## [0.1.2] - 2025-12-15
+
+### Changed
+- **Version**: Bumped version to 0.1.2.
+- **Settings**: Added version display footer to the Settings screen.
+
+## [0.1.1] - 2025-12-15
 
 ### Added
 - **App Icon**: Updated app icon to new "Arrow/Fletcher" design.

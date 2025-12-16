@@ -43,6 +43,17 @@ struct SettingsView: View {
                         // Action
                     }
                 }
+                
+                Section {
+                    HStack {
+                        Spacer()
+                        Text("Fletcher v0.1.2")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                }
+                .listRowBackground(Color.clear)
             }
             .navigationTitle("Settings")
         }
