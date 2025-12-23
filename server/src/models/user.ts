@@ -65,18 +65,35 @@ export const getPrivacySettings = async (userId: string) => {
         `SELECT privacy_settings, retention_days FROM users WHERE id = $1`,
         [userId]
     );
-    return res.rows[0];
+    const row = res.rows[0];
+    if (!row) return null;
+    return {
+        ...row.privacy_settings,
+        retention_days: row.retention_days
+    };
 };
 
 export const updatePrivacySettings = async (userId: string, settings: any) => {
-    // Merge updates
-    // For MVP, simplistic update
+    const { retention_days, ...privacyUpdates } = settings;
+
+    // We use COALESCE to keep existing value if retention_days is undefined (passed as null/undefined)
+    // But since it's optional in schema, it might be undefined in 'settings' object.
+
+    // Construct dynamic query or just use COALESCE with explicit parameter
+    // If retention_days is undefined, we pass null and use COALESCE(null, col) = col? No, COALESCE($2, col) works if $2 is null.
+
     const res = await query(
         `UPDATE users 
-         SET privacy_settings = privacy_settings || $2::jsonb 
+         SET 
+            retention_days = COALESCE($2, retention_days),
+            privacy_settings = privacy_settings || $3::jsonb 
          WHERE id = $1 
-         RETURNING privacy_settings`,
-        [userId, JSON.stringify(settings)]
+         RETURNING privacy_settings, retention_days`,
+        [userId, retention_days ?? null, JSON.stringify(privacyUpdates)]
     );
-    return res.rows[0];
+    const row = res.rows[0];
+    return {
+        ...row.privacy_settings,
+        retention_days: row.retention_days
+    };
 };

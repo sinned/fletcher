@@ -114,14 +114,15 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
         const BodySchema = z.object({
             precision_level: z.enum(['high', 'medium', 'low']).optional(),
             history_access_days: z.number().min(0).max(30).optional(),
-            enabled: z.boolean().optional()
+            enabled: z.boolean().optional(),
+            retention_days: z.number().min(-1).refine(val => val !== 0, { message: "Cannot be 0" }).optional()
         });
 
         try {
             const updates = BodySchema.parse(request.body);
-            await updatePrivacySettings(userId, updates);
+            const updated = await updatePrivacySettings(userId, updates);
 
-            return { status: 'ok', updated_at: new Date() };
+            return { status: 'ok', updated_at: new Date(), ...updated };
         } catch (e) {
             reply.code(400).send({ error: 'Invalid settings' });
         }

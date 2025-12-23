@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.2.6] - 2025-12-23
+### Added
+- **Settings**: Updated retention policy options to support "Indefinite".
+- **Sync**: Retention settings changes are now synced to the server instantly.
+
+## [Server 1.1.4] - 2025-12-23
+### Fixed
+- **Data Persistence**: Fixed an issue where the database was wiped on every server restart by removing `DROP TABLE` statements from the schema.
+- **Retention**: Implemented a daily cron job to enforce retention policies and delete old data, while respecting the "Indefinite" setting.
+- **API**: Updated `PATCH /api/privacy-settings` to accept and persist `retention_days`.
+
 ## [1.2.3] - 2025-12-16
 ## [Server 1.1.3] - 2025-12-16
 

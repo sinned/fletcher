@@ -2,8 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
 
-    @State private var precision: Double = 1.0
-    @State private var retentionDays: Int = 30
+    @AppStorage("locationPrecision") private var precision: Double = 1.0
+    @AppStorage("retentionDays") private var retentionDays: Int = 30
     @State private var showDeleteConfirmation = false
     
     var body: some View {
@@ -24,6 +24,10 @@ struct SettingsView: View {
                         Text("14 Days").tag(14)
                         Text("30 Days").tag(30)
                         Text("90 Days").tag(90)
+                        Text("Indefinite").tag(-1)
+                    }
+                    .onChange(of: retentionDays) { newValue in
+                        APIClient.shared.updatePrivacySettings(retentionDays: newValue)
                     }
                 }
                 

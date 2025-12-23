@@ -2,6 +2,8 @@ import fastify from 'fastify';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 import { initDb, query } from './db';
+import { startCleanupJob } from './cron';
+
 
 dotenv.config();
 
@@ -67,7 +69,11 @@ const start = async () => {
         }
         await server.listen({ port: PORT, host: '0.0.0.0' });
         console.log(`Server listening on ${PORT}`);
+
+        // Start Cron Jobs
+        startCleanupJob();
     } catch (err) {
+
         server.log.error(err);
         process.exit(1);
     }

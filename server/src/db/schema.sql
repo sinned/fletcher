@@ -2,19 +2,12 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- RESET FOR V2.1 (MVP Development)
-DROP TABLE IF EXISTS access_logs CASCADE;
-DROP TABLE IF EXISTS assistant_connections CASCADE;
-DROP TABLE IF EXISTS locations CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
--- DROP oauth_codes if exists from previous run (it's gone in this schema but good to clean)
-DROP TABLE IF EXISTS oauth_codes CASCADE;
-
 -- Users table (device-based accounts)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
     api_key TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    retention_days INTEGER DEFAULT 30 CHECK (retention_days BETWEEN 1 AND 90),
+    retention_days INTEGER DEFAULT 30 CHECK (retention_days >= -1 AND retention_days != 0),
     privacy_settings JSONB DEFAULT '{
         "precision_level": "medium",
         "history_access_days": 7,

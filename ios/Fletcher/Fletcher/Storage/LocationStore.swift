@@ -16,6 +16,7 @@ class LocationStore: ObservableObject {
     
     func addLocation(_ point: LocationPoint) {
         locations.append(point)
+        cleanup()
         save()
     }
     
@@ -68,8 +69,28 @@ class LocationStore: ObservableObject {
         do {
             let data = try Data(contentsOf: fileURL)
             locations = try JSONDecoder().decode([LocationPoint].self, from: data)
+            cleanup()
         } catch {
             print("Failed to load locations (or empty): \(error)")
+        }
+    }
+    
+    private func cleanup() {
+        let defaults = UserDefaults.standard
+        let retentionDays: Int
+        
+        if defaults.object(forKey: "retentionDays") == nil {
+            retentionDays = 30 // Default matches SettingsView
+        } else {
+            retentionDays = defaults.integer(forKey: "retentionDays")
+        }
+        
+        // -1 or 0 means indefinite (treating 0 as such for safety, though -1 is the new option)
+        guard retentionDays > 0 else { return }
+        
+        // Calculate cutoff date
+        if let cutoffDate = Calendar.current.date(byAdding: .day, value: -retentionDays, to: Date()) {
+            locations.removeAll { $0.timestamp < cutoffDate }
         }
     }
 }

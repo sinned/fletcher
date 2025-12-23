@@ -108,6 +108,42 @@ class APIClient: ObservableObject {
             }
         }.resume()
     }
+    // MARK: - Settings
+    
+    func updatePrivacySettings(retentionDays: Int) {
+        guard let url = URL(string: "\(baseURL.absoluteString)/privacy-settings") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        if let key = apiKey {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+        
+        // retention_days: -1 is valid for indefinite
+        let body = ["retention_days": retentionDays]
+        
+        do {
+            request.httpBody = try JSONEncoder().encode(body)
+            
+            URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    print("Failed to update settings: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                    print("Successfully updated retention to \(retentionDays) days")
+                } else {
+                    print("Failed to update settings: Server returned \(String(describing: response))")
+                }
+            }.resume()
+        } catch {
+            print("Encoding error: \(error)")
+        }
+    }
+
     // MARK: - Registration
     
     func registerDevice() async {
