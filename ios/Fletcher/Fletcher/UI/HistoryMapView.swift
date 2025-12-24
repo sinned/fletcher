@@ -14,14 +14,32 @@ struct HistoryMapView: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Map(position: $position) {
-                ForEach(locations) { location in
-                    Annotation("Loc", coordinate: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)) {
-                        Circle()
-                            .fill(Color.purple)
-                            .frame(width: 8, height: 8)
-                            .overlay(Circle().stroke(Color.white, lineWidth: 1))
+                if !locations.isEmpty {
+                    // Draw the path
+                    MapPolyline(coordinates: locations.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
+                        .stroke(Color.purple, lineWidth: 5)
+                    
+                    // Start Point (Green)
+                    if let start = locations.last { 
+                        Annotation("Start", coordinate: CLLocationCoordinate2D(latitude: start.latitude, longitude: start.longitude)) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 12, height: 12)
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                        }
+                        .annotationTitles(.hidden)
                     }
-                    .annotationTitles(.hidden)
+                    
+                    // End Point (Red/Current)
+                    if let end = locations.first {
+                        Annotation("End", coordinate: CLLocationCoordinate2D(latitude: end.latitude, longitude: end.longitude)) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 12, height: 12)
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                        }
+                        .annotationTitles(.hidden)
+                    }
                 }
             }
             .onMapCameraChange { context in
