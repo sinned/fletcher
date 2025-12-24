@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.13] - 2025-12-23
+### Fixed
+- **Performance**: Resolved memory crash in History View by replacing individual annotations with optimized `MapPolyline` rendering.
+
 ## [1.2.12] - 2025-12-23
 ### Fixed
 - **Sync**: Improved error handling to log server error details when history fetch fails.
