@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.11] - 2025-12-23
+### Changed
+- **Sync**: Increased default history download limit to 5000 items to ensure complete restoration.
+
+## [Server 1.1.8] - 2025-12-23
+### Changed
+- **API**: Increased maximum limit for `GET /api/locations` from 1000 to 10000.
+
 ## [1.2.10] - 2025-12-23
 ### Changed
 - **UI**: Added total location count to the History View title.

@@ -97,7 +97,7 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
     fastify.get('/locations', async (request, reply) => {
         const userId = (request as any).userId;
         const QuerySchema = z.object({
-            limit: z.coerce.number().min(1).max(1000).default(100),
+            limit: z.coerce.number().min(1).max(10000).default(100),
             before: z.string().optional() // ISO date string for pagination
         });
 

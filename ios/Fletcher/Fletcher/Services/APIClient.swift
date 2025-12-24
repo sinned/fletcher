@@ -129,7 +129,7 @@ class APIClient: ObservableObject {
         }.resume()
     }
     
-    func fetchHistory(limit: Int = 1000, before: Date? = nil, completion: @escaping ([LocationPoint]) -> Void) {
+    func fetchHistory(limit: Int = 5000, before: Date? = nil, completion: @escaping ([LocationPoint]) -> Void) {
         var urlComp = URLComponents(string: "\(baseURL.absoluteString)/locations")!
         var queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
         
