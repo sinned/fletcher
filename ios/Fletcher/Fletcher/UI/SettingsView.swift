@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("retentionDays") private var retentionDays: Int = 30
     @AppStorage("serverURL") private var serverURL: String = "https://fletcher-server.onrender.com"
     @State private var showDeleteConfirmation = false
+    @State private var showDeleteServerConfirmation = false
     
     var body: some View {
         NavigationView {
@@ -33,16 +34,35 @@ struct SettingsView: View {
                 }
                 
                 Section {
-                    Button("Delete All History", role: .destructive) {
+                    Button("Delete All Local History", role: .destructive) {
                         showDeleteConfirmation = true
                     }
-                    .alert("Delete All History", isPresented: $showDeleteConfirmation) {
+                    .alert("Delete All Local History", isPresented: $showDeleteConfirmation) {
                         Button("Cancel", role: .cancel) { }
                         Button("Delete", role: .destructive) {
                             LocationStore.shared.clearAll()
                         }
                     } message: {
-                        Text("Are you sure you want to delete all location history? This action cannot be undone.")
+                        Text("Are you sure you want to delete all local location history? This action cannot be undone.")
+                    }
+                    
+                    Button("Delete All Local and Server History", role: .destructive) {
+                        showDeleteServerConfirmation = true
+                    }
+                    .alert("Delete All History", isPresented: $showDeleteServerConfirmation) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Delete", role: .destructive) {
+                            LocationStore.shared.clearAll()
+                            Task {
+                                do {
+                                    try await APIClient.shared.deleteServerHistory()
+                                } catch {
+                                    print("Failed to delete server history: \(error)")
+                                }
+                            }
+                        }
+                    } message: {
+                        Text("Are you sure you want to delete ALL location history from both this device and the server? This action cannot be undone.")
                     }
                 }
                 

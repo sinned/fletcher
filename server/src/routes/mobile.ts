@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db';
 import { createUser, validateAPIKey, getPrivacySettings, updatePrivacySettings, isPgError } from '../models/user';
-import { saveLocations, deleteLocation } from '../models/location';
+import { saveLocations, deleteLocation, deleteAllLocations } from '../models/location';
 
 export default async function mobileRoutes(fastify: FastifyInstance) {
 
@@ -175,7 +175,14 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
         }
     });
 
-    // 5. Delete Location (Keep from v1)
+    // 5. Delete All Locations
+    fastify.delete('/locations', async (request, reply) => {
+        const userId = (request as any).userId;
+        const deletedCount = await deleteAllLocations(userId);
+        return { status: 'ok', count: deletedCount };
+    });
+
+    // 6. Delete Location (Keep from v1)
     fastify.delete('/locations/:id', async (request, reply) => {
         const userId = (request as any).userId;
         const { id } = request.params as { id: string };

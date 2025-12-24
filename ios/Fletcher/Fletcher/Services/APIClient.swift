@@ -222,6 +222,24 @@ class APIClient: ObservableObject {
             }.resume()
         } catch {
             print("Encoding error: \(error)")
+    }
+
+    func deleteServerHistory() async throws {
+        guard let url = URL(string: "\(baseURL.absoluteString)/locations") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        if let key = apiKey {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+            print("Successfully deleted all server history")
+        } else {
+            throw NSError(domain: "APIClient", code: (response as? HTTPURLResponse)?.statusCode ?? 500, userInfo: [NSLocalizedDescriptionKey: "Failed to delete server history"])
         }
     }
 

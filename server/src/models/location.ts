@@ -213,3 +213,11 @@ export const deleteLocation = async (id: string, userId: string) => {
     );
     return res.rowCount && res.rowCount > 0;
 };
+
+export const deleteAllLocations = async (userId: string) => {
+    const res = await query(
+        'DELETE FROM locations WHERE user_id = $1',
+        [userId]
+    );
+    return res.rowCount || 0;
+};
