@@ -42,6 +42,16 @@ export const validateMCPToken = async (token: string) => {
         query(`UPDATE assistant_connections SET last_used_at = NOW() WHERE mcp_token = $1`, [token]).catch(console.error);
         return res.rows[0].user_id;
     }
+
+    // Debugging why it failed
+    const debugRes = await query(`SELECT id, expires_at, revoked_at FROM assistant_connections WHERE mcp_token = $1`, [token]);
+    if (debugRes.rows.length > 0) {
+        const row = debugRes.rows[0];
+        console.log(`[Auth] Token found but invalid: ID=${row.id}, Exp=${row.expires_at}, Revoked=${row.revoked_at}, Now=${new Date()}`);
+    } else {
+        console.log(`[Auth] Token not found: ${token.substring(0, 10)}...`);
+    }
+
     return null;
 };
 

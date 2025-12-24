@@ -11,6 +11,10 @@
 - **Sync**: Retention settings changes are now synced to the server instantly.
 - **Sync**: Implemented batch uploading (100 items per request) to respect server limits.
 
+## [Server 1.1.6] - 2025-12-23
+### Added
+- **Auth**: Added detailed server-side logging for MCP token validation failures to aid debugging.
+
 ## [Server 1.1.5] - 2025-12-23
 ### Fixed
 - **MCP SSE**: Fixed an issue where the connection would hang by properly hijacking the Fastify response stream.
