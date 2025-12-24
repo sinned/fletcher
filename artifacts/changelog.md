@@ -6,12 +6,18 @@
 - **API**: Moved status check from root `/` to `/status/`.
 - **Config**: Added `public/` directory for static assets.
 
+### Documentation
+- Updated `tdd-fletcher-server.md` to reflect current implementation. (23:48)
+
 ## [1.3.0] - 2025-12-23
 ### Added
 - **Security**: Implemented Keychain for secure API key storage.
 - **Maintenance**: Centralized version management in `Info.plist` and `Bundle+Version`.
 - **UX**: Added URL validation in MCP Connection settings.
 - **Config**: Added `ITSAppUsesNonExemptEncryption` to `Info.plist` to bypass export compliance.
+
+### Documentation
+- Updated `tdd-fletcher-ios-app.md` to reflect current implementation. (23:48)
 
 ### Changed
 - **Performance**: Refactored sync logic to use iterative batching with a 5-minute timer, preventing stack overflows and battery drain.
