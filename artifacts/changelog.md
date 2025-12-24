@@ -11,6 +11,11 @@
 - **Sync**: Retention settings changes are now synced to the server instantly.
 - **Sync**: Implemented batch uploading (100 items per request) to respect server limits.
 
+## [Server 1.1.5] - 2025-12-23
+### Fixed
+- **MCP SSE**: Fixed an issue where the connection would hang by properly hijacking the Fastify response stream.
+- **Imports**: Fixed dynamic import syntax for `getRecentLocations` tool fallback.
+
 ## [Server 1.1.4] - 2025-12-23
 ### Fixed
 - **Data Persistence**: Fixed an issue where the database was wiped on every server restart by removing `DROP TABLE` statements from the schema.
