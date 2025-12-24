@@ -62,6 +62,15 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             version: '2.0.0',
         });
 
+        // Hijack Fastify's response handling to allow raw SSE stream
+        // This prevents Fastify from trying to send a response after this handler returns
+        // res is 'reply', req is 'request' in Fastify. Wait, arguments are (req, res).
+        // Standard fastify handler: (request, reply)
+        // My code: (req, res). So 'res' is the Reply object.
+        res.hijack();
+
+        console.log(`[MCP] Client connected. Token validated for user: ${userId}`);
+
         // Resource: Current Location
         mcp.resource('current-location', 'fletcher://location/current', async (uri) => {
             const loc = await getLatestLocation(userId);
