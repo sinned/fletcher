@@ -46,6 +46,16 @@ struct SettingsView: View {
                     }
                 }
                 
+                Section(header: Text("MCP")) {
+                    NavigationLink(destination: MCPConnectionView()) {
+                        Label("Manage Tokens", systemImage: "key.fill")
+                    }
+                    
+                    NavigationLink(destination: MCPRequestHistoryView()) {
+                        Label("Request History", systemImage: "clock.arrow.circlepath")
+                    }
+                }
+                
                 Section(header: Text("Advanced")) {
                     VStack(alignment: .leading) {
                         Text("Server URL")

@@ -356,6 +356,64 @@ class APIClient: ObservableObject {
             throw URLError(.badServerResponse)
         }
     }
+    
+    func fetchMCPRequestHistory(
+        limit: Int = 50,
+        offset: Int = 0,
+        assistantType: String? = nil,
+        startDate: Date? = nil,
+        endDate: Date? = nil
+    ) async throws -> MCPRequestsResponse {
+        var components = URLComponents(string: "\(baseURL.absoluteString)/access-logs")!
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)")
+        ]
+        
+        if let assistantType = assistantType {
+            queryItems.append(URLQueryItem(name: "assistant_type", value: assistantType))
+        }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        if let startDate = startDate {
+            queryItems.append(URLQueryItem(name: "start_date", value: dateFormatter.string(from: startDate)))
+        }
+        if let endDate = endDate {
+            queryItems.append(URLQueryItem(name: "end_date", value: dateFormatter.string(from: endDate)))
+        }
+        
+        components.queryItems = queryItems
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let key = apiKey {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw NSError(domain: "APIClient", code: 401, userInfo: [NSLocalizedDescriptionKey: "Authentication failed"])
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "APIClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Server Error \(httpResponse.statusCode): \(errorText)"])
+        }
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(MCPRequestsResponse.self, from: data)
+    }
+    
     func checkHealth() async -> Bool {
         guard let url = URL(string: baseURL.absoluteString.replacingOccurrences(of: "/api", with: "/health")) else { return false }
         

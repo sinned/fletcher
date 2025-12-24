@@ -28,9 +28,9 @@ export const createMCPToken = async (userId: string, assistantType: string, toke
     return { token, expiresAt };
 };
 
-export const validateMCPToken = async (token: string) => {
+export const validateMCPToken = async (token: string): Promise<{ userId: string; assistantType: string } | null> => {
     const res = await query(
-        `SELECT user_id, id FROM assistant_connections 
+        `SELECT user_id, id, assistant_type FROM assistant_connections 
          WHERE mcp_token = $1 
            AND revoked_at IS NULL 
            AND expires_at > NOW()`,
@@ -40,7 +40,10 @@ export const validateMCPToken = async (token: string) => {
     if (res.rows.length > 0) {
         // Async update last_used
         query(`UPDATE assistant_connections SET last_used_at = NOW() WHERE mcp_token = $1`, [token]).catch(console.error);
-        return res.rows[0].user_id;
+        return {
+            userId: res.rows[0].user_id,
+            assistantType: res.rows[0].assistant_type
+        };
     }
 
     // Debugging why it failed

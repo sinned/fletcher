@@ -1,5 +1,23 @@
 # Changelog
 
+## [Server 1.3.0] - 2025-12-24
+### Added
+- **MCP**: Enhanced request logging to capture accurate assistant type (Claude, Cursor, ChatGPT, etc.)
+- **MCP**: Added response time tracking for all MCP tool and resource calls
+- **API**: New endpoint `GET /api/access-logs` for fetching MCP request history with pagination and filtering
+- **Transparency**: Centralized logging function with full query parameter capture
+
+### Changed
+- **Auth**: `validateMCPToken` now returns both userId and assistantType for proper tracking
+
+## [1.5.0] - 2025-12-24
+### Added
+- **MCP**: New "Request History" view showing all AI assistant requests by date (00:51)
+- **MCP**: Expandable request details showing query parameters and response times
+- **MCP**: Added "Manage Tokens" link in Settings for better discoverability
+- **UI**: Pull-to-refresh and pagination support in request history
+- **Transparency**: Full visibility into what AI assistants are requesting
+
 ## [Server 1.2.0] - 2025-12-23
 ### Added
 - **Web**: Added Landing Page, Privacy Policy, and Terms of Service using `@fastify/static`.

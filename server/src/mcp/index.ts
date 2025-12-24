@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { getLatestLocation, getLocationHistory, getRecentLocations, getLocationHistoryWithRadius, getFrequentLocations, getRecentTrajectory, getTotalLocationCount } from '../models/location';
 import { validateMCPToken } from '../models/auth';
 import { getPrivacySettings } from '../models/user';
-import { query } from '../db';
+import { logMCPRequest } from '../models/access_log';
 
 const sessions = new Map<string, SSEServerTransport>();
 
@@ -17,12 +17,9 @@ function applyPrecision(lat: number, lon: number, level: string): [number, numbe
     return [lat, lon];
 }
 
-async function logAccess(userId: string, endpoint: string, count: number, params?: any) {
-    await query(
-        `INSERT INTO access_logs (user_id, assistant_type, endpoint, location_count, query_params)
-         VALUES ($1, 'claude', $2, $3, $4)`,
-        [userId, endpoint, count, params ? JSON.stringify(params) : null]
-    );
+async function logAccess(userId: string, assistantType: string, endpoint: string, count: number, params?: any, startTime?: number) {
+    const responseTimeMs = startTime ? Date.now() - startTime : undefined;
+    await logMCPRequest(userId, assistantType, endpoint, count, params, responseTimeMs);
 }
 
 // Plugin Definition
@@ -47,9 +44,11 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         if (!token) return res.code(401).send({ error: 'Missing Authorization header or token query parameter' });
 
-        const userId = await validateMCPToken(token);
+        const tokenData = await validateMCPToken(token);
 
-        if (!userId) return res.code(403).send({ error: 'Invalid token' });
+        if (!tokenData) return res.code(403).send({ error: 'Invalid token' });
+
+        const { userId, assistantType } = tokenData;
 
         // Retrieve privacy settings for this session context
         const privacy = await getPrivacySettings(userId);
@@ -73,12 +72,13 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         // Resource: Current Location
         mcp.resource('current-location', 'fletcher://location/current', async (uri) => {
+            const startTime = Date.now();
             const loc = await getLatestLocation(userId);
             if (!loc) return { contents: [] };
 
             const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
 
-            await logAccess(userId, 'current-location', 1);
+            await logAccess(userId, assistantType, 'current-location', 1, undefined, startTime);
 
             return {
                 contents: [{
@@ -99,6 +99,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         // Resource: History (Last 24h, limited by settings)
         mcp.resource('location-history', 'fletcher://location/history', async (uri) => {
+            const startTime = Date.now();
             const end = new Date();
             // Default resource is 24h, but restricted by user setting if < 1 day (e.g. 0)
             const days = Math.min(1, historyDays);
@@ -116,7 +117,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 };
             });
 
-            await logAccess(userId, 'location-history', features.length);
+            await logAccess(userId, assistantType, 'location-history', features.length, undefined, startTime);
 
             return {
                 contents: [{
@@ -138,6 +139,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 radius_meters: z.number().optional().describe("Radius in meters for filtering")
             },
             async ({ start_date, end_date, limit = 100, offset = 0, center_lat, center_lon, radius_meters }) => {
+                const startTime = Date.now();
                 let features: any[] = [];
                 let logDetails: any = {};
                 let totalCount = 0;
@@ -198,7 +200,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                     logDetails = { type: 'history', start, end, limit, offset };
                 }
 
-                await logAccess(userId, 'get_location_history', features.length, logDetails);
+                await logAccess(userId, assistantType, 'get_location_history', features.length, logDetails, startTime);
 
                 return {
                     content: [{
@@ -221,12 +223,13 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         // Tool: Get Current Location
         mcp.tool('get_current_location', {}, async () => {
+            const startTime = Date.now();
             const loc = await getLatestLocation(userId);
             if (!loc) return { content: [{ type: "text", text: "No location found." }] };
 
             const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
 
-            await logAccess(userId, 'get_current_location', 1);
+            await logAccess(userId, assistantType, 'get_current_location', 1, undefined, startTime);
 
             return {
                 content: [{
@@ -250,6 +253,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 limit: z.number().optional().default(10).describe("Number of points to return"),
             },
             async ({ limit = 10 }) => {
+                const startTime = Date.now();
                 const history = await getRecentTrajectory(userId, limit);
                 const features = history.map((loc: any) => {
                     const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
@@ -260,7 +264,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                     };
                 });
 
-                await logAccess(userId, 'get_recent_trajectory', features.length, { limit });
+                await logAccess(userId, assistantType, 'get_recent_trajectory', features.length, { limit }, startTime);
 
                 return {
                     content: [{
@@ -281,6 +285,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 days: z.number().optional().default(30).describe("Lookback period in days")
             },
             async ({ limit = 5, days = 30 }) => {
+                const startTime = Date.now();
                 const clusters = await getFrequentLocations(userId, limit, days);
                 // Format as FeatureCollection of points
                 const features = clusters.map((c: any) => {
@@ -299,7 +304,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                     };
                 });
 
-                await logAccess(userId, 'get_frequent_locations', features.length, { limit, days });
+                await logAccess(userId, assistantType, 'get_frequent_locations', features.length, { limit, days }, startTime);
 
                 return {
                     content: [{

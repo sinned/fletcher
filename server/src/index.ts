@@ -41,6 +41,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 import mobileRoutes from './routes/mobile';
 import mcpApiRoutes from './routes/mcp_api';
+import accessLogsRoutes from './routes/access_logs';
 import { mcpServerPlugin } from './mcp';
 
 // ... imports
@@ -51,6 +52,7 @@ import fastifyStatic from '@fastify/static';
 
 server.register(mobileRoutes, { prefix: '/api' });
 server.register(mcpApiRoutes, { prefix: '/api/mcp' }); // Mounted at /api/mcp
+server.register(accessLogsRoutes, { prefix: '/api/access-logs' }); // Mounted at /api/access-logs
 server.register(require('@fastify/formbody'));
 
 // Serve static files
