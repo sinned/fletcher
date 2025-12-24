@@ -22,6 +22,10 @@ struct MCPConnectionView: View {
                 Button(action: { showGenerateSheet = true }) {
                     Label("Connect New Assistant", systemImage: "plus")
                 }
+                
+                NavigationLink(destination: MCPRequestHistoryView()) {
+                    Label("Request History", systemImage: "clock.arrow.circlepath")
+                }
             }
             
             Section(header: Text("Active Connections")) {
