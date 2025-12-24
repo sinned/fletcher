@@ -119,10 +119,21 @@ struct MCPConnectionView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         
-                        Button("Done") {
-                            showGenerateSheet = false
-                            generatedToken = nil
-                            loadTokens()
+                        Section {
+                            Button(action: {
+                                showGenerateSheet = false
+                                generatedToken = nil
+                                loadTokens()
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    Text("Done")
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                }
+                            }
+                            .listRowBackground(Color.blue)
+                            .foregroundColor(.white)
                         }
                     } else {
                         Section(header: Text("New Connection")) {
@@ -135,17 +146,41 @@ struct MCPConnectionView: View {
                             }
                         }
                         
-                        Button("Generate Token") {
-                            generateToken()
+                        Section {
+                            Button(action: {
+                                generateToken()
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    if isLoading {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Text("Generate Token")
+                                            .fontWeight(.semibold)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .disabled(newTokenName.isEmpty || isLoading)
+                            .listRowBackground(newTokenName.isEmpty || isLoading ? Color.gray.opacity(0.3) : Color.blue)
+                            .foregroundColor(.white)
                         }
-                        .disabled(newTokenName.isEmpty || isLoading)
                     }
                 }
                 .navigationTitle("Connect Assistant")
-                .navigationBarItems(leading: Button("Cancel") {
-                    showGenerateSheet = false
-                    generatedToken = nil
-                })
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        // Only show cancel if token hasn't been generated yet
+                        if generatedToken == nil {
+                            Button("Cancel") {
+                                showGenerateSheet = false
+                                generatedToken = nil
+                            }
+                        }
+                    }
+                }
             }
         }
         .alert("Error", isPresented: .constant(errorMessage != nil), actions: {
