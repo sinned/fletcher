@@ -2,6 +2,14 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createMCPToken, listMCPTokens, revokeMCPToken } from '../models/auth';
 
+const getBaseUrl = () => {
+    if (process.env.BASE_URL) return process.env.BASE_URL;
+    const port = process.env.PORT || 3000;
+    return process.env.NODE_ENV === 'production'
+        ? 'https://mcp.fletcher.app'
+        : `http://localhost:${port}`;
+};
+
 export default async function mcpApiRoutes(fastify: FastifyInstance) {
     // Auth Middleware: Check API Key (reuse logic from mobile routes?)
     // Actually, mobile routes middleware only applies to /api/locations etc.
@@ -66,7 +74,7 @@ export default async function mcpApiRoutes(fastify: FastifyInstance) {
             // TDD Spec Response
             return reply.code(201).send({
                 token: token,
-                sse_url: 'https://mcp.fletcher.app/sse', // In dev: http://localhost:3000/sse
+                sse_url: `${getBaseUrl()}/sse`,
                 expires_at: expiresAt,
                 instructions: "Add this MCP server to Claude:\n1. Open Claude Settings → Integrations\n2. Click 'Add MCP Server'\n3. Enter the URL and token above"
             });

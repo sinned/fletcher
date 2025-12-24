@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import { z } from 'zod';
 import { initDb, query } from './db';
 import { startCleanupJob } from './cron';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 
 dotenv.config();
@@ -27,7 +29,10 @@ server.register(require('@fastify/formbody'));
 // No prefix, because it handles /sse and /messages directly
 server.register(mcpServerPlugin);
 
-const SERVER_VERSION = '1.1.9';
+const packageJson = JSON.parse(
+    readFileSync(join(__dirname, '../package.json'), 'utf-8')
+);
+const SERVER_VERSION = packageJson.version;
 
 // Health check
 server.get('/health', async (request, reply) => {
@@ -65,7 +70,8 @@ const start = async () => {
         try {
             await initDb();
         } catch (e) {
-            server.log.warn('Database initialization failed, proceeding without DB connection: ' + e);
+            server.log.error({ err: e }, 'Database initialization failed');
+            process.exit(1);
         }
         await server.listen({ port: PORT, host: '0.0.0.0' });
         console.log(`Server listening on ${PORT}`);

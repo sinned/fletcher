@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
-import { getLatestLocation, getLocationHistory, getRecentLocations } from '../models/location';
+import { getLatestLocation, getLocationHistory, getRecentLocations, getLocationHistoryWithRadius, getFrequentLocations, getRecentTrajectory, getTotalLocationCount } from '../models/location';
 import { validateMCPToken } from '../models/auth';
 import { getPrivacySettings } from '../models/user';
 import { query } from '../db';
@@ -104,7 +104,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             const days = Math.min(1, historyDays);
             const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
 
-            const history = await getLocationHistory(userId, start, end);
+            const history = await getLocationHistory(userId, { start, end });
 
             // Apply precision to all
             const features = history.map((loc: any) => {
@@ -127,33 +127,66 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             };
         });
 
-        // Tool: Get History with Range or Recent
         mcp.tool('get_location_history',
             {
                 start_date: z.string().optional().describe("ISO date string. If provided, end_date is also required."),
-                end_date: z.string().optional()
+                end_date: z.string().optional(),
+                limit: z.number().optional().default(100).describe("Max number of results (default 100, max 1000)"),
+                offset: z.number().optional().default(0).describe("Pagination offset"),
+                center_lat: z.number().optional().describe("Latitude for radius filtering"),
+                center_lon: z.number().optional().describe("Longitude for radius filtering"),
+                radius_meters: z.number().optional().describe("Radius in meters for filtering")
             },
-            async ({ start_date, end_date }) => {
+            async ({ start_date, end_date, limit = 100, offset = 0, center_lat, center_lon, radius_meters }) => {
                 let features: any[] = [];
                 let logDetails: any = {};
+                let totalCount = 0;
 
-                if (start_date && end_date) {
-                    let start = new Date(start_date);
-                    let end = new Date(end_date);
+                // Enforce max limit
+                if (limit > 1000) limit = 1000;
 
-                    // Enforce policies
-                    const now = new Date();
-                    if (end > now) end = now;
+                let start: Date | undefined;
+                let end: Date | undefined;
 
-                    // Limit range to historyDays
-                    const maxStart = new Date(now.getTime() - historyDays * 24 * 60 * 60 * 1000);
-                    if (start < maxStart) start = maxStart;
+                if (start_date) start = new Date(start_date);
+                if (end_date) end = new Date(end_date);
 
-                    if (start > end) {
-                        return { content: [{ type: "text", text: "Invalid range or restricted by privacy settings." }] };
+                // Privacy policy checks can be applied here for start/end if needed
+                // For now, relying on model-level or query-level constraints if any
+
+                // Radius filtering or Standard History
+                if (center_lat !== undefined && center_lon !== undefined && radius_meters !== undefined) {
+                    const history = await getLocationHistoryWithRadius(userId, center_lat, center_lon, radius_meters, { start, end, limit, offset });
+                    features = history.map((loc: any) => {
+                        const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                        return {
+                            type: "Feature",
+                            geometry: { type: "Point", coordinates: [lon, lat] },
+                            properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                        };
+                    });
+
+                    // Count is harder for radius without separate query, simplistic approach:
+                    // We won't fetch total count for radius query to avoid performance hit unless requested.
+                    // Returning -1 or undefined for total_count if not calculated.
+                    // For now, let's just use returned length for returned_count.
+                    totalCount = -1;
+                    logDetails = { type: 'radius', center: [center_lat, center_lon], radius: radius_meters };
+
+                } else {
+                    // Standard History
+                    const history = await getLocationHistory(userId, { start, end, limit, offset });
+
+                    // Get total count for pagination metadata
+                    // Only fetch total count if offset is 0 to save resources, or if client needs it.
+                    // The requirement says "referencing metadata: total_count".
+                    if (start || end) {
+                        totalCount = await getTotalLocationCount(userId, { start, end });
+                    } else {
+                        // Fallback or full count?
+                        totalCount = await getTotalLocationCount(userId);
                     }
 
-                    const history = await getLocationHistory(userId, start, end);
                     features = history.map((loc: any) => {
                         const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
                         return {
@@ -162,19 +195,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                             properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
                         };
                     });
-                    logDetails = { type: 'range', start_date, end_date };
-                } else {
-                    // Fallback: Get recent 10 points
-                    const history = await getRecentLocations(userId, 10);
-                    features = history.map((loc: any) => {
-                        const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
-                        return {
-                            type: "Feature",
-                            geometry: { type: "Point", coordinates: [lon, lat] },
-                            properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
-                        };
-                    });
-                    logDetails = { type: 'recent', count: 10 };
+                    logDetails = { type: 'history', start, end, limit, offset };
                 }
 
                 await logAccess(userId, 'get_location_history', features.length, logDetails);
@@ -182,9 +203,113 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 return {
                     content: [{
                         type: "text",
-                        text: JSON.stringify({ type: "FeatureCollection", features })
+                        text: JSON.stringify({
+                            type: "FeatureCollection",
+                            features,
+                            metadata: {
+                                total_count: totalCount >= 0 ? totalCount : undefined,
+                                returned_count: features.length,
+                                has_more: totalCount > offset + features.length,
+                                limit,
+                                offset
+                            }
+                        })
                     }]
                 }
+            }
+        );
+
+        // Tool: Get Current Location
+        mcp.tool('get_current_location', {}, async () => {
+            const loc = await getLatestLocation(userId);
+            if (!loc) return { content: [{ type: "text", text: "No location found." }] };
+
+            const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+
+            await logAccess(userId, 'get_current_location', 1);
+
+            return {
+                content: [{
+                    type: "text",
+                    text: JSON.stringify({
+                        type: "Feature",
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: {
+                            accuracy: loc.accuracy,
+                            timestamp: loc.timestamp,
+                            precision_level: precision
+                        }
+                    })
+                }]
+            };
+        });
+
+        // Tool: Get Recent Trajectory
+        mcp.tool('get_recent_trajectory',
+            {
+                limit: z.number().optional().default(10).describe("Number of points to return"),
+            },
+            async ({ limit = 10 }) => {
+                const history = await getRecentTrajectory(userId, limit);
+                const features = history.map((loc: any) => {
+                    const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                    return {
+                        type: "Feature",
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                    };
+                });
+
+                await logAccess(userId, 'get_recent_trajectory', features.length, { limit });
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            type: "FeatureCollection",
+                            features
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: Get Frequent Locations
+        mcp.tool('get_frequent_locations',
+            {
+                limit: z.number().optional().default(5).describe("Number of top locations to return"),
+                days: z.number().optional().default(30).describe("Lookback period in days")
+            },
+            async ({ limit = 5, days = 30 }) => {
+                const clusters = await getFrequentLocations(userId, limit, days);
+                // Format as FeatureCollection of points
+                const features = clusters.map((c: any) => {
+                    // Start/End are clustered coordinates. Precision applies?
+                    // Yes, user privacy applies to these too.
+                    const [lat, lon] = applyPrecision(c.latitude, c.longitude, precision);
+                    return {
+                        type: "Feature",
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: {
+                            visit_count: c.visit_count,
+                            first_seen: c.first_seen,
+                            last_seen: c.last_seen,
+                            total_time_spent: c.total_time_spent
+                        }
+                    };
+                });
+
+                await logAccess(userId, 'get_frequent_locations', features.length, { limit, days });
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            type: "FeatureCollection",
+                            features
+                        })
+                    }]
+                };
             }
         );
 

@@ -14,7 +14,7 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 - **Data Management**:
     - **Local History**: View logs in List or Map format.
     - **Delete History**: Securely clear all local data with confirmation.
-- **MCP Integration**: Fully functional Model Context Protocol server for Claude integration.
+- **MCP Integration**: Fully functional Model Context Protocol server for Claude integration. Supports advanced location queries (radius, trajectory, frequency).
 - **Synchronization**:
     - **Cloud Sync**: Securely uploads location history to your private server.
     - **Status View**: Detailed sync diagnostics and manual sync controls.
@@ -63,6 +63,8 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 ## API Endpoints
 - `GET /health`: Health check
 - `POST /api/locations`: Upload location history
+- `GET /api/locations`: Get location history (paginated)
+- `POST /api/mcp/generate-token`: Generate MCP connection token
 - `GET /mcp/sse`: MCP Server-Sent Events endpoint
 - `POST /auth/oauth/authorize`: OAuth2 Authorization
 

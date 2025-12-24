@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db';
-import { createUser, validateAPIKey, getPrivacySettings, updatePrivacySettings } from '../models/user';
+import { createUser, validateAPIKey, getPrivacySettings, updatePrivacySettings, isPgError } from '../models/user';
 import { saveLocations, deleteLocation } from '../models/location';
 
 export default async function mobileRoutes(fastify: FastifyInstance) {
@@ -50,7 +50,7 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
                     created_at: user.created_at
                 });
             } catch (e: any) {
-                if (e.code === '23505') { // Postgres Primary Key violation
+                if (isPgError(e) && e.code === '23505') { // Postgres Primary Key violation
                     return reply.code(409).send({ error: { code: 'USER_EXISTS', message: 'User ID already registered' } });
                 }
                 throw e;

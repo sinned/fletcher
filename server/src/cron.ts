@@ -7,9 +7,11 @@ export const startCleanupJob = () => {
 
     // Run immediately on start
     runCleanup();
+    cleanupExpiredTokens();
 
     setInterval(() => {
         runCleanup();
+        cleanupExpiredTokens();
     }, CLEANUP_INTERVAL_MS);
 };
 
@@ -30,5 +32,23 @@ const runCleanup = async () => {
         }
     } catch (err) {
         console.error('Error during retention cleanup:', err);
+    }
+};
+
+const cleanupExpiredTokens = async () => {
+    try {
+        console.log('Running token cleanup...');
+        const res = await query(`
+            DELETE FROM assistant_connections
+            WHERE expires_at < NOW() 
+               OR revoked_at < NOW() - INTERVAL '30 days'
+        `);
+        if (res.rowCount && res.rowCount > 0) {
+            console.log(`Cleaned up ${res.rowCount} expired tokens`);
+        } else {
+            console.log('Token cleanup complete: No expired tokens found.');
+        }
+    } catch (err) {
+        console.error('Error cleaning up tokens:', err);
     }
 };

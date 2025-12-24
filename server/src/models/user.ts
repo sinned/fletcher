@@ -1,6 +1,18 @@
 import { query } from '../db';
 import { generateAPIKey, hashAPIKey } from '../utils/crypto';
 
+export interface PgError {
+    code: string;
+    detail?: string;
+    table?: string;
+}
+
+export function isPgError(error: unknown): error is PgError {
+    return typeof error === 'object' &&
+        error !== null &&
+        'code' in error;
+}
+
 export interface User {
     id: string;
     api_key: string;
@@ -76,11 +88,27 @@ export const getPrivacySettings = async (userId: string) => {
 export const updatePrivacySettings = async (userId: string, settings: any) => {
     const { retention_days, ...privacyUpdates } = settings;
 
-    // We use COALESCE to keep existing value if retention_days is undefined (passed as null/undefined)
-    // But since it's optional in schema, it might be undefined in 'settings' object.
+    // Get current settings to validate against
+    const current = await getPrivacySettings(userId);
+    if (!current) throw new Error('User not found');
 
-    // Construct dynamic query or just use COALESCE with explicit parameter
-    // If retention_days is undefined, we pass null and use COALESCE(null, col) = col? No, COALESCE($2, col) works if $2 is null.
+    // Validate: history_access can't exceed retention
+    const newRetention = retention_days ?? current.retention_days;
+    const newHistoryDays = privacyUpdates.history_access_days ?? current.history_access_days;
+
+    if (newRetention > 0 && newHistoryDays > newRetention) {
+        throw new Error('history_access_days cannot exceed retention_days');
+    }
+
+    // Validate: retention_days constraints
+    if (retention_days !== undefined) {
+        if (retention_days === 0) {
+            throw new Error('retention_days cannot be 0 (use -1 for unlimited)');
+        }
+        if (retention_days < -1) {
+            throw new Error('retention_days must be -1 or positive');
+        }
+    }
 
     const res = await query(
         `UPDATE users 
@@ -91,6 +119,7 @@ export const updatePrivacySettings = async (userId: string, settings: any) => {
          RETURNING privacy_settings, retention_days`,
         [userId, retention_days ?? null, JSON.stringify(privacyUpdates)]
     );
+
     const row = res.rows[0];
     return {
         ...row.privacy_settings,

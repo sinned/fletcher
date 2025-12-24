@@ -1,4 +1,4 @@
-import { query } from '../db';
+import db, { query } from '../db';
 
 export interface LocationPoint {
     latitude: number;
@@ -10,7 +10,7 @@ export interface LocationPoint {
 export const saveLocations = async (userId: string, locations: LocationPoint[]) => {
     // Simple batch insert
     // in production, use a transaction or UNNEST
-    const client = await import('../db').then(m => m.default.pool.connect());
+    const client = await db.pool.connect();
     try {
         await client.query('BEGIN');
         for (const loc of locations) {
@@ -45,19 +45,135 @@ export const getLatestLocation = async (userId: string) => {
     return res.rows[0];
 };
 
-export const getLocationHistory = async (userId: string, start: Date, end: Date) => {
-    const res = await query(
-        `SELECT 
+export const getLocationHistory = async (userId: string, options: { start?: Date, end?: Date, limit?: number, offset?: number } = {}) => {
+    const { start, end, limit = 100, offset = 0 } = options;
+
+    let queryStr = `SELECT 
        ST_Y(point::geometry) as latitude, 
        ST_X(point::geometry) as longitude, 
        accuracy, 
        timestamp 
      FROM locations 
-     WHERE user_id = $1 
-       AND timestamp >= $2 
-       AND timestamp <= $3
-     ORDER BY timestamp ASC`,
-        [userId, start, end]
+     WHERE user_id = $1`;
+
+    const params: any[] = [userId];
+    let paramIdx = 2;
+
+    if (start) {
+        queryStr += ` AND timestamp >= $${paramIdx++}`;
+        params.push(start);
+    }
+    if (end) {
+        queryStr += ` AND timestamp <= $${paramIdx++}`;
+        params.push(end);
+    }
+
+    queryStr += ` ORDER BY timestamp ASC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+    params.push(limit, offset);
+
+    const res = await query(queryStr, params);
+    return res.rows;
+};
+
+export const getTotalLocationCount = async (userId: string, options: { start?: Date, end?: Date } = {}) => {
+    const { start, end } = options;
+    let queryStr = `SELECT COUNT(*) as count FROM locations WHERE user_id = $1`;
+    const params: any[] = [userId];
+    let paramIdx = 2;
+
+    if (start) {
+        queryStr += ` AND timestamp >= $${paramIdx++}`;
+        params.push(start);
+    }
+    if (end) {
+        queryStr += ` AND timestamp <= $${paramIdx++}`;
+        params.push(end);
+    }
+
+    const res = await query(queryStr, params);
+    return parseInt(res.rows[0].count, 10);
+};
+
+export const getLocationHistoryWithRadius = async (userId: string, centerLat: number, centerLon: number, radiusMeters: number, options: { start?: Date, end?: Date, limit?: number, offset?: number } = {}) => {
+    const { start, end, limit = 100, offset = 0 } = options;
+
+    let queryStr = `SELECT 
+       ST_Y(point::geometry) as latitude, 
+       ST_X(point::geometry) as longitude, 
+       accuracy, 
+       timestamp 
+     FROM locations 
+     WHERE user_id = $1
+     AND ST_DWithin(point::geography, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, $4)`;
+
+    const params: any[] = [userId, centerLon, centerLat, radiusMeters];
+    let paramIdx = 5;
+
+    if (start) {
+        queryStr += ` AND timestamp >= $${paramIdx++}`;
+        params.push(start);
+    }
+    if (end) {
+        queryStr += ` AND timestamp <= $${paramIdx++}`;
+        params.push(end);
+    }
+
+    queryStr += ` ORDER BY timestamp ASC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+    params.push(limit, offset);
+
+    const res = await query(queryStr, params);
+    return res.rows;
+};
+
+export const getRecentTrajectory = async (userId: string, limit: number = 10, offset: number = 0) => {
+    // Returns points in chronological order, taking the most recent N
+    const res = await query(
+        `SELECT * FROM (
+            SELECT 
+                ST_Y(point::geometry) as latitude, 
+                ST_X(point::geometry) as longitude, 
+                accuracy, 
+                timestamp 
+            FROM locations 
+            WHERE user_id = $1 
+            ORDER BY timestamp DESC 
+            LIMIT $2 OFFSET $3
+        ) sub ORDER BY timestamp ASC`,
+        [userId, limit, offset]
+    );
+    return res.rows;
+};
+
+export const getFrequentLocations = async (userId: string, limit: number = 5, lookbackDays: number = 30) => {
+    // Cluster locations using DBSCAN or grid snapping. 
+    // Using ST_SnapToGrid for simple clustering (approx 0.001 deg ~ 111m) 
+    // This is a heuristic for 'places visited'.
+    const lookbackDate = new Date();
+    lookbackDate.setDate(lookbackDate.getDate() - lookbackDays);
+
+    const res = await query(
+        `WITH clusters AS (
+            SELECT 
+                ST_SnapToGrid(point::geometry, 0.001) as cluster_point,
+                COUNT(*) as visit_count,
+                MIN(timestamp) as first_seen,
+                MAX(timestamp) as last_seen,
+                MAX(timestamp) - MIN(timestamp) as time_span_interval
+            FROM locations
+            WHERE user_id = $1 AND timestamp >= $2
+            GROUP BY cluster_point
+        )
+        SELECT 
+            ST_Y(cluster_point) as latitude,
+            ST_X(cluster_point) as longitude,
+            visit_count,
+            first_seen,
+            last_seen,
+            time_span_interval as total_time_spent
+        FROM clusters
+        ORDER BY visit_count DESC
+        LIMIT $3`,
+        [userId, lookbackDate, limit]
     );
     return res.rows;
 };

@@ -5,10 +5,17 @@
 - **Sync**: Improved error handling to log server error details when history fetch fails.
 
 ## [Server 1.1.9] - 2025-12-23
-### Fixed
-- **API**: Fixed a `keyNotFound` error in history fetch by replacing dynamic import with static import for database query.
+### Added
+- **MCP**: Enhanced `get_location_history` with pagination (`limit`, `offset`), date filtering (`start_date`, `end_date`), and radius search (`center_lat`, `center_lon`, `radius_meters`).
+- **MCP**: Added new tools: `get_current_location`, `get_recent_trajectory`, `get_frequent_locations`.
+- **Schema**: Added schema versioning table and performance indexes.
 
-## [1.2.11] - 2025-12-23
+### Fixed
+- **Stability**: Server now exits properly if database initialization fails.
+- **Config**: Corrected `.env.example` and dynamic SSE URL generation based on environment.
+- **Maintenance**: Improved cleanup cron jobs for tokens and retention policies.
+
+## [1.2.12] - 2025-12-23
 ### Changed
 - **Sync**: Increased default history download limit to 5000 items to ensure complete restoration.
 

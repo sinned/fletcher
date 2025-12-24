@@ -63,3 +63,23 @@ CREATE TABLE IF NOT EXISTS access_logs (
 
 CREATE INDEX IF NOT EXISTS idx_access_logs_user_time ON access_logs(user_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp DESC);
+
+-- Optimizations
+
+-- Schema version tracking
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+INSERT INTO schema_version (version) VALUES (1) 
+ON CONFLICT (version) DO NOTHING;
+
+-- Optimize token cleanup queries
+CREATE INDEX IF NOT EXISTS idx_assistant_expires 
+    ON assistant_connections(expires_at) 
+    WHERE revoked_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_assistant_revoked 
+    ON assistant_connections(revoked_at) 
+    WHERE revoked_at IS NOT NULL;
