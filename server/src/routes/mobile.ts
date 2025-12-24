@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { query } from '../db';
 import { createUser, validateAPIKey, getPrivacySettings, updatePrivacySettings } from '../models/user';
 import { saveLocations, deleteLocation } from '../models/location';
 
@@ -114,7 +115,7 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
             // Let's modify logic inline for MVP or add model method:
             // SELECT ... WHERE user_id = $1 AND ($2::timestamptz IS NULL OR timestamp < $2) ORDER BY timestamp DESC LIMIT $3
 
-            const { query } = await import('../db');
+
             const res = await query(`
                 SELECT 
                     id,

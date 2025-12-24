@@ -153,7 +153,14 @@ class APIClient: ObservableObject {
                 return
             }
             
+            guard let httpResponse = response as? HTTPURLResponse else { return }
             guard let data = data else { return }
+            
+            if !(200...299).contains(httpResponse.statusCode) {
+                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print("Server returned error \(httpResponse.statusCode): \(errorText)")
+                return
+            }
             
             struct HistoryResponse: Decodable {
                 struct RemoteLocation: Decodable {

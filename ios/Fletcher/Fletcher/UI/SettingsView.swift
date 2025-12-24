@@ -54,7 +54,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Text("Fletcher v1.2.11")
+                        Text("Fletcher v1.2.12")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                         Spacer()
