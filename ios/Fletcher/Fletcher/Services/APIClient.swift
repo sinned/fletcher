@@ -230,10 +230,14 @@ class APIClient: ObservableObject {
     func registerDevice() async {
         if apiKey != nil { return } // Already registered
         
-        let id = UUID() // Generate new ID or use vendor ID? Server expects UUID. 
-        // Ideally persisted UUID, but for MVP we can generate one. 
-        // Better: Use IdentifierForVendor if strictly 1:1, but UUID is fine if stored.
-        // Actually, let's just generate one and store it.
+        let id: UUID
+        if let existingId = UserDefaults.standard.string(forKey: "userId"), let uuid = UUID(uuidString: existingId) {
+            id = uuid
+            print("Reusing existing User ID: \(existingId)")
+        } else {
+            id = UUID()
+            print("Generated new User ID: \(id.uuidString)")
+        }
         
         guard let url = URL(string: "\(baseURL.absoluteString)/register") else { return }
         
