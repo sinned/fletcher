@@ -15,11 +15,18 @@ struct HistoryMapView: View {
         ZStack(alignment: .bottomTrailing) {
             Map(position: $position) {
                 if !locations.isEmpty {
-                    // Draw the path
-                    MapPolyline(coordinates: locations.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) })
-                        .stroke(Color.purple, lineWidth: 5)
+                    // Show all locations as dots
+                    ForEach(locations) { location in
+                        Annotation("", coordinate: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)) {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 8, height: 8)
+                                .overlay(Circle().stroke(Color.white, lineWidth: 1))
+                        }
+                        .annotationTitles(.hidden)
+                    }
                     
-                    // Start Point (Green)
+                    // Highlight oldest point (green)
                     if let start = locations.last { 
                         Annotation("Start", coordinate: CLLocationCoordinate2D(latitude: start.latitude, longitude: start.longitude)) {
                             Circle()
@@ -30,7 +37,7 @@ struct HistoryMapView: View {
                         .annotationTitles(.hidden)
                     }
                     
-                    // End Point (Red/Current)
+                    // Highlight newest point (red)
                     if let end = locations.first {
                         Annotation("End", coordinate: CLLocationCoordinate2D(latitude: end.latitude, longitude: end.longitude)) {
                             Circle()
