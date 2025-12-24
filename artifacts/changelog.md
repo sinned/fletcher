@@ -3,6 +3,7 @@
 ## [1.2.6] - 2025-12-23
 ### Added
 - **Settings**: Updated retention policy options to support "Indefinite".
+- **Fix**: Retention settings are now strictly enforced locally (previously ignored).
 - **Sync**: Retention settings changes are now synced to the server instantly.
 
 ## [Server 1.1.4] - 2025-12-23
