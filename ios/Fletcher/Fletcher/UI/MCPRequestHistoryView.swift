@@ -96,93 +96,56 @@ struct MCPRequestHistoryView: View {
 
 struct MCPRequestRow: View {
     let request: MCPRequest
-    @State private var isExpanded = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        NavigationLink(destination: MCPRequestDetailView(request: request)) {
             HStack {
                 Image(systemName: request.assistantIcon)
                     .font(.title3)
                     .foregroundColor(.blue)
                     .frame(width: 30)
                 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(request.formattedEndpoint)
                         .font(.headline)
-                    Text(request.assistantType.capitalized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        Text(request.assistantType.capitalized)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        if request.locationCount > 0 {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.caption2)
+                                Text("\(request.locationCount)")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.orange)
+                        }
+                        
+                        if let responseTime = request.responseTimeMs {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("\(responseTime)ms")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
                 
                 Spacer()
                 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(request.formattedTimestamp)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    if request.locationCount > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin.circle.fill")
-                                .font(.caption2)
-                            Text("\(request.locationCount)")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.orange)
-                    }
-                }
-            }
-            
-            if let params = request.queryParams, !params.isEmpty {
-                Button(action: {
-                    withAnimation {
-                        isExpanded.toggle()
-                    }
-                }) {
-                    HStack {
-                        Text(isExpanded ? "Hide Details" : "Show Details")
-                            .font(.caption)
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                    }
-                    .foregroundColor(.blue)
-                }
-                
-                if isExpanded {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(params.keys.sorted()), id: \.self) { key in
-                            HStack(alignment: .top) {
-                                Text("\(key):")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("\(String(describing: params[key]?.value ?? ""))")
-                                    .font(.caption)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        
-                        if let responseTime = request.responseTimeMs {
-                            HStack {
-                                Text("Response time:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("\(responseTime)ms")
-                                    .font(.caption)
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                    }
-                    .padding(.top, 4)
-                    .padding(.leading, 30)
-                }
-            } else if let responseTime = request.responseTimeMs {
-                Text("Response: \(responseTime)ms")
+                Text(request.formattedTimestamp)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .padding(.leading, 30)
             }
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
     }
 }
 
