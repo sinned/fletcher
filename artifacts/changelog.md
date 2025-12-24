@@ -11,6 +11,7 @@
 - **Security**: Implemented Keychain for secure API key storage.
 - **Maintenance**: Centralized version management in `Info.plist` and `Bundle+Version`.
 - **UX**: Added URL validation in MCP Connection settings.
+- **Config**: Added `ITSAppUsesNonExemptEncryption` to `Info.plist` to bypass export compliance.
 
 ### Changed
 - **Performance**: Refactored sync logic to use iterative batching with a 5-minute timer, preventing stack overflows and battery drain.
