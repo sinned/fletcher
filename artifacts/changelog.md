@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.7] - 2025-12-23
+### Fixed
+- **Settings**: Updated `onChange` to use the new two-parameter syntax, resolving an iOS 17 deprecation warning.
+
 ## [1.2.6] - 2025-12-23
 ### Added
 - **Settings**: Updated retention policy options to support "Indefinite".

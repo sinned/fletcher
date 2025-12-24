@@ -26,7 +26,7 @@ struct SettingsView: View {
                         Text("90 Days").tag(90)
                         Text("Indefinite").tag(-1)
                     }
-                    .onChange(of: retentionDays) { newValue in
+                    .onChange(of: retentionDays) { _, newValue in
                         APIClient.shared.updatePrivacySettings(retentionDays: newValue)
                     }
                 }
@@ -54,7 +54,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Text("Fletcher v1.2.6")
+                        Text("Fletcher v1.2.7")
                             .font(.footnote)
                             .foregroundColor(.secondary)
                         Spacer()

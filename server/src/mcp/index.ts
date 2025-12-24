@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
-import { getLatestLocation, getLocationHistory } from '../models/location';
+import { getLatestLocation, getLocationHistory, getRecentLocations } from '../models/location';
 import { validateMCPToken } from '../models/auth';
 import { getPrivacySettings } from '../models/user';
 import { query } from '../db';
@@ -156,23 +156,6 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                     logDetails = { type: 'range', start_date, end_date };
                 } else {
                     // Fallback: Get recent 10 points
-                    // We need to import getRecentLocations. I'll need to update imports first, 
-                    // but since I can't do multiple file edits in one turn easily if I didn't plan it...
-                    // Wait, I can't import `getRecentLocations` if it's not imported at the top.
-                    // I'll assume I update imports in a separate step or use `require`? No, ESM/TS.
-                    // I will update the imports in a prior step or this step if possible?
-                    // I cannot edit imports and this block at the same time efficiently with replace_file_content unless I replace the whole file.
-                    // I will perform the import update in a separate call immediately after this or before.
-                    // Actually, I'll return the logic here and let the compiler fail?
-                    // No, I'll update using the new function `getRecentLocations`.
-                    // To be safe, I should update imports *first*.
-                    // I will cancel this tool call and update imports first?
-                    // No, I will trust the planner order.
-                    // I will perform the import update as a separate `replace_file_content` call in THIS turn (parallel).
-
-                    const { getRecentLocations } = await import('../models/location'); // Dynamic import to avoid top-level change conflict?
-                    // Or just use the imported version if I update the top.
-
                     const history = await getRecentLocations(userId, 10);
                     features = history.map((loc: any) => {
                         const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
@@ -210,11 +193,16 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
     fastify.post('/messages', async (req, res) => {
         const sessionId = (req.query as any).sessionId;
+        console.log(`[MCP] POST /messages sessionId=${sessionId}`);
         if (!sessionId) return res.code(400).send('Missing sessionId');
 
         const transport = sessions.get(sessionId);
-        if (!transport) return res.code(404).send('Session not found');
+        if (!transport) {
+            console.log(`[MCP] Session not found: ${sessionId}`);
+            return res.code(404).send('Session not found');
+        }
 
         await transport.handlePostMessage(req.raw, res.raw);
+        console.log(`[MCP] Handled Post Message for ${sessionId}`);
     });
 };
