@@ -9,6 +9,13 @@
 ### Documentation
 - Updated `tdd-fletcher-server.md` to reflect current implementation. (23:48)
 
+## [1.4.0] - 2025-12-24
+### Added
+- **UI**: Added new "Assistants" tab to replace "Logs".
+- **MCP**: Added support for multiple assistant types (Claude, ChatGPT, Cursor, Other).
+- **UX**: Added connection instructions tailored to each assistant type.
+- **Config**: Updated server to allow flexible assistant types.
+
 ## [1.3.0] - 2025-12-23
 ### Added
 - **Security**: Implemented Keychain for secure API key storage.
