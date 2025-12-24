@@ -16,6 +16,12 @@
 - **UX**: Added connection instructions tailored to each assistant type.
 - **Config**: Updated server to allow flexible assistant types.
 
+## [1.4.1] - 2025-12-24
+### Changed
+- **UX**: Moved Server URL configuration to Settings > Advanced.
+- **UX**: Added "Reset to Default" button for Server URL.
+- **Error Handling**: Improved error messages for invalid API keys/authentication failures.
+
 ## [1.3.0] - 2025-12-23
 ### Added
 - **Security**: Implemented Keychain for secure API key storage.

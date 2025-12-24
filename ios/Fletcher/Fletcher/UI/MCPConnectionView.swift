@@ -17,19 +17,6 @@ struct MCPConnectionView: View {
     
     var body: some View {
         List {
-            Section(header: Text("Server Configuration")) {
-                HStack {
-                    TextField("Server URL", text: $serverURL)
-                        .textContentType(.URL)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    if !isValidURL(serverURL) && !serverURL.isEmpty {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    }
-                }
-            }
 
             Section {
                 Button(action: { showGenerateSheet = true }) {
@@ -203,12 +190,4 @@ struct MCPConnectionView: View {
         return "\(cleanURL)/sse?token=\(token)"
     }
     
-    private func isValidURL(_ string: String) -> Bool {
-        guard let url = URL(string: string),
-              let scheme = url.scheme,
-              ["http", "https"].contains(scheme) else {
-            return false
-        }
-        return true
-    }
 }

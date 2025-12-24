@@ -4,6 +4,7 @@ struct SettingsView: View {
 
     @AppStorage("locationPrecision") private var precision: Double = 1.0
     @AppStorage("retentionDays") private var retentionDays: Int = 30
+    @AppStorage("serverURL") private var serverURL: String = "https://fletcher-server.onrender.com"
     @State private var showDeleteConfirmation = false
     
     var body: some View {
@@ -43,6 +44,24 @@ struct SettingsView: View {
                     } message: {
                         Text("Are you sure you want to delete all location history? This action cannot be undone.")
                     }
+                }
+                
+                Section(header: Text("Advanced")) {
+                    VStack(alignment: .leading) {
+                        Text("Server URL")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        TextField("Server URL", text: $serverURL)
+                            .textContentType(.URL)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .keyboardType(.URL)
+                    }
+                    
+                    Button("Reset to Default") {
+                        serverURL = "https://fletcher-server.onrender.com"
+                    }
+                    .disabled(serverURL == "https://fletcher-server.onrender.com")
                 }
                 
                 Section {
