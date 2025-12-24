@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.10] - 2025-12-23
+### Changed
+- **UI**: Added total location count to the History View title.
+- **Config**: Added missing Location Usage Descriptions to `Info.plist`.
+
 ## [1.2.9] - 2025-12-23
 ### Added
 - **Sync**: Added "Download History" button in Sync Status screen to fetch historical data from server.

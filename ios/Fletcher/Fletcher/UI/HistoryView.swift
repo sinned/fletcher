@@ -107,7 +107,7 @@ struct HistoryView: View {
                     HistoryMapView(locations: locationStore.locations)
                 }
             }
-            .navigationTitle("Location History")
+            .navigationTitle("History (\(locationStore.locations.count))")
         }
     }
     
