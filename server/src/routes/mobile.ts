@@ -93,6 +93,52 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // 2b. Get Locations (History)
+    fastify.get('/locations', async (request, reply) => {
+        const userId = (request as any).userId;
+        const QuerySchema = z.object({
+            limit: z.coerce.number().min(1).max(1000).default(100),
+            before: z.string().optional() // ISO date string for pagination
+        });
+
+        try {
+            const { limit, before } = QuerySchema.parse(request.query);
+
+            // Reusing getRecentLocations but with proper pagination logic would be better
+            // For now, let's implement a direct query here or use a precise model function
+            // TDD: "Client can fetch history". Limiting to simple "latest N" or "before date".
+
+            // Let's use getRecentLocations for simple latest N if no 'before'
+            // But we want to fetch *older* than 'before' if provided.
+
+            // Let's modify logic inline for MVP or add model method:
+            // SELECT ... WHERE user_id = $1 AND ($2::timestamptz IS NULL OR timestamp < $2) ORDER BY timestamp DESC LIMIT $3
+
+            const { query } = await import('../db');
+            const res = await query(`
+                SELECT 
+                    id,
+                    ST_Y(point::geometry) as latitude, 
+                    ST_X(point::geometry) as longitude, 
+                    accuracy, 
+                    timestamp
+                FROM locations
+                WHERE user_id = $1
+                AND ($2::timestamptz IS NULL OR timestamp < $2::timestamptz)
+                ORDER BY timestamp DESC
+                LIMIT $3
+            `, [userId, before || null, limit]);
+
+            return {
+                status: 'ok',
+                locations: res.rows
+            };
+        } catch (e) {
+            fastify.log.error(e);
+            return reply.code(400).send({ error: 'Invalid query' });
+        }
+    });
+
     // 3. Get Privacy Settings
     fastify.get('/privacy-settings', async (request, reply) => {
         const userId = (request as any).userId;

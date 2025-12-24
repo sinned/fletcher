@@ -73,6 +73,16 @@ struct SyncStatusView: View {
                             .foregroundColor(.orange)
                     }
                     .disabled(api.isSyncing)
+                    
+                    Button(action: {
+                        api.fetchHistory { points in
+                            store.mergeLocations(points)
+                        }
+                    }) {
+                        Text("Download History from Server")
+                            .foregroundColor(.blue)
+                    }
+                    .disabled(api.isSyncing)
                 }
                 
                 Section(footer: Text("Fletcher syncs automatically in the background when significant location changes are detected.")) {

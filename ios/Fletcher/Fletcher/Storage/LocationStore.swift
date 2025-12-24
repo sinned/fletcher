@@ -20,6 +20,37 @@ class LocationStore: ObservableObject {
         save()
     }
     
+    func mergeLocations(_ newLocations: [LocationPoint]) {
+        var addedCount = 0
+        for loc in newLocations {
+            // Check if ID exists OR if same timestamp (fuzzy check?)
+            // Server locations have IDs. Local might have different IDs if not synced?
+            // Actually, if we fetch from server, they have server-assigned IDs or client-assigned IDs sent earlier.
+            // If client generated UUID, and server kept it, then ID match works.
+            // If server generated UUID (no, schema says users send locs, usually with client ID or server gen?
+            // Schema has `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`. 
+            // Client sends `(latitude, longitude...)` in POST /locations.
+            // Server Generates IDs!
+            // So if we pull from server, they have Server IDs. 
+            // Local locations have Client IDs.
+            // If we blindly merge, we might duplicate if we have local copy that *was* synced but app forgot it was synced?
+            // Or if we have local copy, it has `synced=true`.
+            // Ideally we match by timestamp + lat/lon.
+            
+            // Simple dupe check: ID match OR Timestamp match
+            if !locations.contains(where: { $0.id == loc.id || abs($0.timestamp.timeIntervalSince(loc.timestamp)) < 0.001 }) {
+                locations.append(loc)
+                addedCount += 1
+            }
+        }
+        
+        if addedCount > 0 {
+            locations.sort(by: { $0.timestamp > $1.timestamp })
+            save()
+            print("Merged \(addedCount) locations from server")
+        }
+    }
+    
     func deleteLocation(id: UUID) {
         locations.removeAll { $0.id == id }
         save()

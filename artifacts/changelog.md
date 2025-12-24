@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.9] - 2025-12-23
+### Added
+- **Sync**: Added "Download History" button in Sync Status screen to fetch historical data from server.
+- **Sync**: Implemented efficient history merging to prevent duplicates.
+
+## [Server 1.1.7] - 2025-12-23
+### Added
+- **API**: Added `GET /api/locations` endpoint to allow mobile clients to fetch location history.
+
 ## [1.2.8] - 2025-12-23
 ### Changed
 - **Config**: Enabled support for all interface orientations (Portrait, Landscape Left/Right) on iPhone and iPad.

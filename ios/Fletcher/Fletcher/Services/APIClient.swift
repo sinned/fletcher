@@ -128,6 +128,74 @@ class APIClient: ObservableObject {
             }
         }.resume()
     }
+    
+    func fetchHistory(limit: Int = 1000, before: Date? = nil, completion: @escaping ([LocationPoint]) -> Void) {
+        var urlComp = URLComponents(string: "\(baseURL.absoluteString)/locations")!
+        var queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+        
+        if let before = before {
+            let formatter = ISO8601DateFormatter()
+            queryItems.append(URLQueryItem(name: "before", value: formatter.string(from: before)))
+        }
+        urlComp.queryItems = queryItems
+        
+        guard let url = urlComp.url else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let key = apiKey {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Fetch history failed: \(error)")
+                return
+            }
+            
+            guard let data = data else { return }
+            
+            struct HistoryResponse: Decodable {
+                struct RemoteLocation: Decodable {
+                    let id: UUID
+                    let latitude: Double
+                    let longitude: Double
+                    let accuracy: Double
+                    let timestamp: String
+                }
+                let locations: [RemoteLocation]
+            }
+            
+            do {
+                let res = try JSONDecoder().decode(HistoryResponse.self, from: data)
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                let points = res.locations.compactMap { loc -> LocationPoint? in
+                    // Handle ISO string parsing manually or via formatter
+                    // Server sends standard ISO from Postgres usually
+                    // Let's try flexible parsing or standard
+                    guard let date = formatter.date(from: loc.timestamp) ?? ISO8601DateFormatter().date(from: loc.timestamp) else { return nil }
+                    return LocationPoint(
+                        id: loc.id,
+                        latitude: loc.latitude,
+                        longitude: loc.longitude,
+                        accuracy: loc.accuracy,
+                        timestamp: date,
+                        synced: true // It came from server
+                    )
+                }
+                
+                DispatchQueue.main.async {
+                    completion(points)
+                }
+            } catch {
+                print("Decoding error: \(error)")
+                // print(String(data: data, encoding: .utf8) ?? "")
+            }
+        }.resume()
+    }
+
     // MARK: - Settings
     
     func updatePrivacySettings(retentionDays: Int) {
