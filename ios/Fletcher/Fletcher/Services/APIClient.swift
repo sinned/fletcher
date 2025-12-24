@@ -271,7 +271,7 @@ class APIClient: ObservableObject {
 
     // MARK: - MCP Methods
 
-    func generateMCPToken(name: String) async throws -> MCPTokenResponse {
+    func generateMCPToken(name: String, assistantType: String) async throws -> MCPTokenResponse {
         guard let url = URL(string: "\(baseURL.absoluteString)/mcp/generate-token") else {
             throw URLError(.badURL)
         }
@@ -283,7 +283,7 @@ class APIClient: ObservableObject {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
         
-        let body = ["assistant_type": "claude", "token_name": name]
+        let body = ["assistant_type": assistantType.lowercased(), "token_name": name]
         request.httpBody = try JSONEncoder().encode(body)
         
         let (data, response) = try await URLSession.shared.data(for: request)

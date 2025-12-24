@@ -15,11 +15,13 @@ struct MainView: View {
                 }
                 .tag(0)
             
-            LogsView()
-                .tabItem {
-                    Label("Logs", systemImage: "list.bullet")
-                }
-                .tag(1)
+            NavigationView {
+                MCPConnectionView()
+            }
+            .tabItem {
+                Label("Assistants", systemImage: "sparkles")
+            }
+            .tag(1)
             
             HistoryView()
                 .tabItem {

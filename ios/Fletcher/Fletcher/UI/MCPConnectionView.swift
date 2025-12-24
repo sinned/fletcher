@@ -8,7 +8,10 @@ struct MCPConnectionView: View {
     // Generate Token State
     @State private var showGenerateSheet = false
     @State private var newTokenName = "My Device"
+    @State private var newAssistantType = "Claude"
     @State private var generatedToken: MCPTokenResponse?
+    
+    let assistantTypes = ["Claude", "ChatGPT", "Cursor", "Other"]
     
     @AppStorage("serverURL") private var serverURL: String = "https://fletcher-server.onrender.com"
     
@@ -23,7 +26,7 @@ struct MCPConnectionView: View {
                     
                     if !isValidURL(serverURL) && !serverURL.isEmpty {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
+                        .foregroundColor(.orange)
                     }
                 }
             }
@@ -36,17 +39,31 @@ struct MCPConnectionView: View {
             
             Section(header: Text("Active Connections")) {
                 if tokens.isEmpty && !isLoading {
-                    Text("No active connections")
-                        .foregroundColor(.secondary)
+                    Button(action: { showGenerateSheet = true }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("No assistants connected")
+                                .font(.headline)
+                                .foregroundColor(.primary)
+                            Text("Connect this device to your own AI assistant to let it access your location data securely.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("Tap here to connect")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                                .padding(.top, 4)
+                        }
+                        .padding(.vertical, 8)
+                    }
                 }
                 
                 ForEach(tokens) { token in
                     VStack(alignment: .leading) {
                         HStack {
-                            Text(token.token_name ?? "Claude")
+                            Text(token.token_name ?? "Assistant")
                                 .font(.headline)
                             Spacer()
-                            Text(token.assistant_type)
+                            Text(token.assistant_type.capitalized)
                                 .font(.caption)
                                 .padding(4)
                                 .background(Color.blue.opacity(0.1))
@@ -72,7 +89,7 @@ struct MCPConnectionView: View {
                 }
             }
         }
-        .navigationTitle("Integrations")
+        .navigationTitle("Assistants")
         .onAppear(perform: loadTokens)
         .sheet(isPresented: $showGenerateSheet) {
             NavigationView {
@@ -104,10 +121,11 @@ struct MCPConnectionView: View {
                                 }
                             }
                             
-                            Text("Instructions:\n1. Open Claude Desktop Settings\n2. Go to Developer → Edit Config\n3. Add this SSE server with the URL above.")
+                            Text(generated.instructions)
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         
                         Button("Done") {
@@ -118,6 +136,12 @@ struct MCPConnectionView: View {
                     } else {
                         Section(header: Text("New Connection")) {
                             TextField("Device Name (e.g. MacBook)", text: $newTokenName)
+                            
+                            Picker("Assistant Type", selection: $newAssistantType) {
+                                ForEach(assistantTypes, id: \.self) { type in
+                                    Text(type).tag(type)
+                                }
+                            }
                         }
                         
                         Button("Generate Token") {
@@ -156,7 +180,7 @@ struct MCPConnectionView: View {
         isLoading = true
         Task {
             do {
-                generatedToken = try await APIClient.shared.generateMCPToken(name: newTokenName)
+                generatedToken = try await APIClient.shared.generateMCPToken(name: newTokenName, assistantType: newAssistantType)
             } catch {
                 errorMessage = "Failed to generate: \(error.localizedDescription)"
             }

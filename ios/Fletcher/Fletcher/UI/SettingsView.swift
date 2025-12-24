@@ -31,12 +31,6 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section(header: Text("Assistants")) {
-                    NavigationLink("Manage Connections") {
-                        MCPConnectionView()
-                    }
-                }
-                
                 Section {
                     Button("Delete All History", role: .destructive) {
                         showDeleteConfirmation = true

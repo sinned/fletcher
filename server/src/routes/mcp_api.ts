@@ -78,7 +78,7 @@ export default async function mcpApiRoutes(fastify: FastifyInstance) {
     // 1. Generate Token
     fastify.post('/generate-token', async (request, reply) => {
         const BodySchema = z.object({
-            assistant_type: z.literal('claude'),
+            assistant_type: z.enum(['claude', 'chatgpt', 'cursor', 'other']),
             token_name: z.string().max(50).optional()
         });
 
@@ -88,16 +88,32 @@ export default async function mcpApiRoutes(fastify: FastifyInstance) {
 
             const { token, expiresAt } = await createMCPToken(userId, assistant_type, token_name);
 
-            // TDD Spec Response
+            let instructions = "Add this MCP server to your assistant.";
+            const sseUrl = `${getBaseUrl()}/sse`;
+
+            switch (assistant_type) {
+                case 'claude':
+                    instructions = "1. Open Claude Desktop Settings\n2. Go to Developer → Edit Config\n3. Add this SSE server with the URL above.";
+                    break;
+                case 'cursor':
+                    instructions = "1. Open Cursor Settings\n2. Go to Features → MCP\n3. Click '+ Add New MCP Server'\n4. Select 'SSE' and enter the URL above.";
+                    break;
+                case 'chatgpt':
+                    instructions = "Use a compatible MCP Action or Proxy to connect using the URL above.";
+                    break;
+                default:
+                    instructions = "Configure your MCP client with the SSE URL above.";
+            }
+
             return reply.code(201).send({
                 token: token,
-                sse_url: `${getBaseUrl()}/sse`,
+                sse_url: sseUrl,
                 expires_at: expiresAt,
-                instructions: "Add this MCP server to Claude:\n1. Open Claude Settings → Integrations\n2. Click 'Add MCP Server'\n3. Enter the URL and token above"
+                instructions: instructions
             });
         } catch (err) {
             fastify.log.error(err);
-            return reply.code(400).send({ error: 'Invalid Request' });
+            return reply.code(400).send({ error: 'Invalid Request, check assistant_type' });
         }
     });
 

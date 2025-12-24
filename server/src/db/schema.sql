@@ -36,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_locations_geog ON locations USING GIST(point);
 CREATE TABLE IF NOT EXISTS assistant_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    assistant_type TEXT NOT NULL CHECK (assistant_type IN ('claude')),
+    assistant_type TEXT NOT NULL CHECK (assistant_type IN ('claude', 'chatgpt', 'cursor', 'other')),
     mcp_token TEXT UNIQUE NOT NULL,
     token_name TEXT,
     connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
