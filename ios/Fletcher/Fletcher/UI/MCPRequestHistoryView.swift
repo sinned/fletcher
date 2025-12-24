@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct MCPRequestHistoryView: View {
     @StateObject private var viewModel = MCPRequestHistoryViewModel()
