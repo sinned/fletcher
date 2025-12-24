@@ -8,8 +8,7 @@ When you need to release a new version of the app, follow this checklist to ensu
 
 1.  **Determine New Version**: Decide on the next semantic version (e.g., `v0.1.2` -> `v0.1.3`).
 2.  **Update Source Code**:
-    - [ ] `ios/Fletcher/Fletcher/UI/SplashScreen.swift`: Update the "vX.Y.Z" string.
-    - [ ] `ios/Fletcher/Fletcher/UI/SettingsView.swift`: Update the footer text.
+    - [ ] `ios/Fletcher/Fletcher/Info.plist`: Update `CFBundleShortVersionString` and `CFBundleVersion`.
 3.  **Update Documentation**:
     - [ ] `artifacts/changelog.md`: Create a new section for the new version and move Unreleased items under it.
 4.  **Verification**:

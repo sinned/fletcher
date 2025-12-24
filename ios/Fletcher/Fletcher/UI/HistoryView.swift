@@ -128,12 +128,4 @@ struct HistoryView: View {
     private func refreshUnsynced() {
         unsyncedCount = LocationStore.shared.getUnsynced().count
     }
-    
-    private func syncNow() {
-        APIClient.shared.syncLocations()
-        // Optimistic / Polling update
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            refreshUnsynced()
-        }
-    }
 }

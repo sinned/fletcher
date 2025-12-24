@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0] - 2025-12-23
+### Added
+- **Security**: Implemented Keychain for secure API key storage.
+- **Maintenance**: Centralized version management in `Info.plist` and `Bundle+Version`.
+- **UX**: Added URL validation in MCP Connection settings.
+
+### Changed
+- **Performance**: Refactored sync logic to use iterative batching with a 5-minute timer, preventing stack overflows and battery drain.
+- **Code Quality**: Reduced code duplication in Map View zoom logic.
+
+### Fixed
+- **Retention**: Corrected retention logic to support "Indefinite" (-1) and fixed 0-day bugs.
+
 ## [1.2.13] - 2025-12-23
 ### Fixed
 - **Performance**: Resolved memory crash in History View by replacing individual annotations with optimized `MapPolyline` rendering.

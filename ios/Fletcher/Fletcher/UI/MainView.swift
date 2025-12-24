@@ -230,33 +230,29 @@ struct MapView: View {
     }
     
     private func zoomIn() {
-        // Use visibleRegion if available (from manual interaction), otherwise fallback to position.region or default
-        let currentRegion = visibleRegion ?? position.region ?? MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
-            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-        )
+        zoom(by: 1.0 / zoomFactor)
+    }
+    
+    private func zoomOut() {
+        zoom(by: zoomFactor)
+    }
+    
+    private func zoom(by factor: Double) {
+        let currentRegion = getCurrentRegion()
         
         var newSpan = currentRegion.span
-        newSpan.latitudeDelta /= zoomFactor
-        newSpan.longitudeDelta /= zoomFactor
+        newSpan.latitudeDelta *= factor
+        newSpan.longitudeDelta *= factor
         
         withAnimation {
             position = .region(MKCoordinateRegion(center: currentRegion.center, span: newSpan))
         }
     }
     
-    private func zoomOut() {
-        let currentRegion = visibleRegion ?? position.region ?? MKCoordinateRegion(
-             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
-             span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-         )
-         
-        var newSpan = currentRegion.span
-        newSpan.latitudeDelta *= zoomFactor
-        newSpan.longitudeDelta *= zoomFactor
-        
-        withAnimation {
-            position = .region(MKCoordinateRegion(center: currentRegion.center, span: newSpan))
-        }
+    private func getCurrentRegion() -> MKCoordinateRegion {
+        visibleRegion ?? position.region ?? MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
     }
 }

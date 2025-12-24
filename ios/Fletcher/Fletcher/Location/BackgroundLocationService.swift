@@ -11,6 +11,8 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
     private let store = LocationStore.shared
     private let api = APIClient.shared
     
+    private var syncTimer: Timer?
+    
     override init() {
         super.init()
         locationManager.delegate = self
@@ -18,7 +20,18 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
         locationManager.allowsBackgroundLocationUpdates = true
         locationManager.pausesLocationUpdatesAutomatically = true
         locationManager.distanceFilter = 100 // Update every 100 meters
-        // In iOS 16+, strictly explicit about background
+        
+        setupSyncTimer()
+    }
+    
+    private func setupSyncTimer() {
+        syncTimer = Timer.scheduledTimer(withTimeInterval: AppConstants.Sync.intervalSeconds, repeats: true) { [weak self] _ in
+            self?.api.syncLocations()
+        }
+    }
+    
+    deinit {
+        syncTimer?.invalidate()
     }
     
     func requestPermissions() {
@@ -48,7 +61,7 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
         )
         
         store.addLocation(newPoint)
-        api.syncLocations()
+        api.syncLocations() // Explicit manual sync is fine
     }
     
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -75,9 +88,7 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
         // Save to store
         store.addLocation(newPoint)
         
-        // Trigger sync if needed (naive approach: sync every few updates or timer)
-        // For MVP, simplistic sync check
-        api.syncLocations()
+        // Sync handles by Timer
     }
     
     func locationManager(_ manager: CLLocationManager, didVisit visit: CLVisit) {
@@ -103,7 +114,9 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
             store.addLocation(departurePoint)
         }
         
-        // Trigger sync
+        // Visits are rare/significant, so maybe we trigger sync here immediately?
+        // Or stick to timer to be consistent?
+        // Let's trigger sync for visits as they are important
         api.syncLocations()
     }
 }

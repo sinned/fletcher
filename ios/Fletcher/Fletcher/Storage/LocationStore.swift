@@ -23,21 +23,8 @@ class LocationStore: ObservableObject {
     func mergeLocations(_ newLocations: [LocationPoint]) {
         var addedCount = 0
         for loc in newLocations {
-            // Check if ID exists OR if same timestamp (fuzzy check?)
-            // Server locations have IDs. Local might have different IDs if not synced?
-            // Actually, if we fetch from server, they have server-assigned IDs or client-assigned IDs sent earlier.
-            // If client generated UUID, and server kept it, then ID match works.
-            // If server generated UUID (no, schema says users send locs, usually with client ID or server gen?
-            // Schema has `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`. 
-            // Client sends `(latitude, longitude...)` in POST /locations.
-            // Server Generates IDs!
-            // So if we pull from server, they have Server IDs. 
-            // Local locations have Client IDs.
-            // If we blindly merge, we might duplicate if we have local copy that *was* synced but app forgot it was synced?
-            // Or if we have local copy, it has `synced=true`.
-            // Ideally we match by timestamp + lat/lon.
-            
-            // Simple dupe check: ID match OR Timestamp match
+            // Deduplication logic: Match by ID or timestamp (within 1ms tolerance).
+            // Server generates new UUIDs, so we rely on timestamp matching for local->server reconciliation.
             if !locations.contains(where: { $0.id == loc.id || abs($0.timestamp.timeIntervalSince(loc.timestamp)) < 0.001 }) {
                 locations.append(loc)
                 addedCount += 1
@@ -108,15 +95,10 @@ class LocationStore: ObservableObject {
     
     private func cleanup() {
         let defaults = UserDefaults.standard
-        let retentionDays: Int
+        // -1 means indefinite, so check for explicit -1 or use default
+        let retentionDays = defaults.object(forKey: "retentionDays") as? Int ?? AppConstants.Defaults.retentionDays
         
-        if defaults.object(forKey: "retentionDays") == nil {
-            retentionDays = 30 // Default matches SettingsView
-        } else {
-            retentionDays = defaults.integer(forKey: "retentionDays")
-        }
-        
-        // -1 or 0 means indefinite (treating 0 as such for safety, though -1 is the new option)
+        // retentionDays <= 0 means indefinite retention
         guard retentionDays > 0 else { return }
         
         // Calculate cutoff date

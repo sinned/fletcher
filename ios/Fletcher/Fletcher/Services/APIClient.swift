@@ -16,21 +16,53 @@ class APIClient: ObservableObject {
     }
     
     func syncLocations() {
-        let unsynced = LocationStore.shared.getUnsynced()
-        guard !unsynced.isEmpty else {
-            DispatchQueue.main.async { self.isSyncing = false }
-            return
+        Task {
+            await syncAllLocations()
         }
+    }
+    
+    private func syncAllLocations() async {
+        guard !isSyncing else { return }
         
-        // Batch limit based on server constraints
-        let batchSize = 100
-        let batch = Array(unsynced.prefix(batchSize))
-        
-        DispatchQueue.main.async {
+        await MainActor.run {
             self.isSyncing = true
             self.lastSyncError = nil
         }
         
+        defer {
+            Task { @MainActor in
+                self.isSyncing = false
+                self.lastSyncAttempt = Date()
+            }
+        }
+        
+        while true {
+            let unsynced = LocationStore.shared.getUnsynced()
+            if unsynced.isEmpty { break }
+            
+            let batchSize = AppConstants.Sync.batchSize
+            let batch = Array(unsynced.prefix(batchSize))
+            
+            do {
+                try await syncBatch(batch)
+                // Mark as synced
+                let ids = batch.map { $0.id }
+                await MainActor.run {
+                    LocationStore.shared.markSynced(ids)
+                }
+                print("Synced batch of \(ids.count)")
+            } catch {
+                print("Sync failed: \(error)")
+                await MainActor.run {
+                    self.lastSyncError = error.localizedDescription
+                }
+                // Stop on error to prevent loop
+                return 
+            }
+        }
+    }
+
+    private func syncBatch(_ batch: [LocationPoint]) async throws {
         let url = baseURL.appendingPathComponent("locations")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -40,8 +72,6 @@ class APIClient: ObservableObject {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
         
-        // Wrap in object
-        // Use a DTO to send only server-expected fields and ensure validity
         struct LocationDTO: Encodable {
             let latitude: Double
             let longitude: Double
@@ -53,80 +83,36 @@ class APIClient: ObservableObject {
             LocationDTO(
                 latitude: loc.latitude,
                 longitude: loc.longitude,
-                accuracy: max(loc.accuracy, 1.0), // Ensure positive for server schema
+                accuracy: max(loc.accuracy, 1.0),
                 timestamp: loc.timestamp
             )
         }
         
         let body = ["locations": payload]
         
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            request.httpBody = try encoder.encode(body)
-        } catch {
-            print("Encoding error: \(error)")
-            DispatchQueue.main.async {
-                self.isSyncing = false
-                self.lastSyncError = "Encoding error"
-            }
-            return
-        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(body)
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Sync failed: \(error)")
-                DispatchQueue.main.async {
-                    self.isSyncing = false
-                    self.lastSyncError = error.localizedDescription
-                }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            if httpResponse.statusCode == 200 {
                 return
-            }
-            
-            if let httpResponse = response as? HTTPURLResponse {
-                if httpResponse.statusCode == 200 {
-                    // Mark as synced
-                    let ids = batch.map { $0.id }
-                    DispatchQueue.main.async {
-                        LocationStore.shared.markSynced(ids)
-                        
-                        // Check if there are more
-                        if unsynced.count > batchSize {
-                            print("Synced batch of \(batchSize). Remaining: \(unsynced.count - batchSize). Recursively syncing next batch.")
-                            // Recursively sync next batch
-                            // Add a slight delay to allow UI to breathe? async is fine.
-                            self.syncLocations()
-                        } else {
-                            print("Synced all \(ids.count) locations")
-                            self.isSyncing = false
-                            self.lastSyncAttempt = Date()
-                        }
-                    }
-                } else if httpResponse.statusCode == 401 {
-                    print("401 Unauthorized. Clearing key and re-registering.")
-                    UserDefaults.standard.removeObject(forKey: "apiKey")
-                    DispatchQueue.main.async {
-                        self.lastSyncError = "Auth invalid. Re-registering..."
-                        self.isSyncing = false
-                    }
-                    Task {
-                        await self.registerDevice()
-                    }
-                } else {
-                    let errorMsg: String
-                    if let data = data, let str = String(data: data, encoding: .utf8) {
-                        errorMsg = str
-                    } else {
-                        errorMsg = String(describing: response)
-                    }
-                    print("Sync server error: \(errorMsg)")
-                    DispatchQueue.main.async {
-                        self.lastSyncError = "Server Error: \(errorMsg)"
-                        self.isSyncing = false
-                    }
+            } else if httpResponse.statusCode == 401 {
+                print("401 Unauthorized. Clearing key.")
+                KeychainManager.delete(key: "apiKey")
+                await MainActor.run {
+                    self.lastSyncError = "Auth invalid. Re-registering..."
                 }
+                // Trigger re-registration if needed, or let user handle it
+                // await registerDevice() // Dangerous to do manually here loops
+                throw URLError(.userAuthenticationRequired)
+            } else {
+                let errorMsg = String(data: data, encoding: .utf8) ?? String(describing: response)
+                throw NSError(domain: "SyncError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMsg])
             }
-        }.resume()
+        }
     }
     
     func fetchHistory(limit: Int = 5000, before: Date? = nil, completion: @escaping ([LocationPoint]) -> Void) {
@@ -182,7 +168,7 @@ class APIClient: ObservableObject {
                     // Handle ISO string parsing manually or via formatter
                     // Server sends standard ISO from Postgres usually
                     // Let's try flexible parsing or standard
-                    guard let date = formatter.date(from: loc.timestamp) ?? ISO8601DateFormatter().date(from: loc.timestamp) else { return nil }
+                    guard let date = ISO8601DateFormatter.fletcherFormatter.date(from: loc.timestamp) else { return nil }
                     return LocationPoint(
                         id: loc.id,
                         latitude: loc.latitude,
@@ -266,7 +252,7 @@ class APIClient: ObservableObject {
                     let api_key: String
                 }
                 let res = try JSONDecoder().decode(RegisterResponse.self, from: data)
-                UserDefaults.standard.set(res.api_key, forKey: "apiKey")
+                _ = KeychainManager.save(key: "apiKey", data: res.api_key)
                 UserDefaults.standard.set(id.uuidString, forKey: "userId") // Store ID too
                 print("Registered with API Key: \(res.api_key)")
             } else {
@@ -280,11 +266,7 @@ class APIClient: ObservableObject {
     // MARK: - Auth
     
     private var apiKey: String? {
-        // Retrieve from Keychain or UserDefaults. For MVP verification, we might hardcode or assume it's stored.
-        // PRD says: "Store `api_key` securely in iOS Keychain".
-        // For this task, I'll assume it's in UserDefaults for simplicity if Keychain helper isn't visible,
-        // OR I should check if AuthManager exists.
-        return UserDefaults.standard.string(forKey: "apiKey")
+        return KeychainManager.load(key: "apiKey")
     }
 
     // MARK: - MCP Methods
