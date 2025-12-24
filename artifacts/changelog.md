@@ -18,6 +18,17 @@
 - **UI**: Pull-to-refresh and pagination support in request history
 - **Transparency**: Full visibility into what AI assistants are requesting
 
+## [1.5.1] - 2025-12-24
+### Added
+- **MCP**: Tappable detail view for individual requests with full information (00:58)
+- **MCP**: Color-coded response times for performance monitoring (green < 100ms, orange < 500ms, red > 500ms)
+- **UI**: Request ID display for debugging
+
+### Changed
+- **UX**: Moved "Request History" from Settings to Assistants tab for better discoverability
+- **UI**: Simplified request list rows - now tap to see full details instead of inline expansion
+- **UI**: Shows assistant icon, location count, and response time in compact format
+
 ## [Server 1.2.0] - 2025-12-23
 ### Added
 - **Web**: Added Landing Page, Privacy Policy, and Terms of Service using `@fastify/static`.
