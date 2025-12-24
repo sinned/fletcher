@@ -1,4 +1,4 @@
-# CLAUDE.md - AI Assistant Guide for Fletcher
+# AGENTS.md - AI Assistant Guide for Fletcher
 
 **Last Updated:** 2025-12-24
 **Repository:** Fletcher - Privacy-first location tracking app with MCP integration
@@ -46,9 +46,9 @@ Fletcher is a **privacy-first location tracking system** that enables AI assista
 
 ```
 ┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
-│   iOS App   │────────▶│  Fletcher Server │◀────────│   Claude    │
+│   iOS App   │────────▶│  Fletcher Server │◀────────│ AI Assistant│
 │             │  HTTPS  │                  │   MCP   │             │
-│  (Client)   │         │  REST + MCP/SSE  │  (SSE)  │ (AI Agent)  │
+│  (Client)   │         │  REST + MCP/SSE  │  (SSE)  │             │
 └─────────────┘         └──────────────────┘         └─────────────┘
                                  │
                                  ▼
@@ -194,7 +194,7 @@ fletcher/
 │
 ├── README.md                        # Project overview
 ├── DEPLOYMENT.md                    # Deployment guide
-└── CLAUDE.md                        # This file
+└── AGENTS.md                        # This file
 ```
 
 ---
@@ -241,6 +241,8 @@ claude/fix-bug-description-<sessionId>
 ```
 
 **CRITICAL:** The branch MUST start with `claude/` and end with the matching session ID, otherwise push will fail with 403.
+
+**Note:** This naming convention applies to all AI coding assistants working in this repository, regardless of the assistant platform or tool being used.
 
 ### Version Bumping
 
@@ -516,9 +518,9 @@ iOS App:
 1. User taps "Generate Token" in Assistants tab
 2. POST /api/mcp/generate-token with assistant_type
 3. Display token ONCE (never stored on client)
-4. User copies to Claude Desktop config
+4. User copies to AI assistant config
 
-Claude:
+AI Assistant:
 1. Connects to /sse with Bearer token
 2. Server validates token on every request
 3. Logs all access to access_logs table
@@ -575,7 +577,7 @@ iOS App:
 3. Check server logs for validation errors
 4. Test `/sse` endpoint manually with curl
 5. Review `access_logs` table for failed requests
-6. Check Claude Desktop logs
+6. Check AI assistant logs for connection errors
 
 ---
 
@@ -711,7 +713,7 @@ See `DEPLOYMENT.md` for full details.
 - ❌ NEVER push to `main` without PR review
 - ❌ NEVER skip changelog updates before pushing
 - ❌ NEVER use non-descriptive commit messages
-- ❌ NEVER push branches without `claude/` prefix (will fail)
+- ❌ NEVER push branches without `claude/` prefix (will fail with 403)
 
 ### Security Best Practices
 
@@ -896,7 +898,7 @@ LOG_LEVEL=info
 3. **Test on real devices** - Simulator has limited location capabilities
 4. **Never skip security** - API keys in Keychain, tokens validated, SQL parameterized
 5. **Log all MCP requests** - Transparency is a core feature
-6. **Use branches with `claude/` prefix** - Required for push to succeed
+6. **Use branches with `claude/` prefix** - Required for push to succeed (applies to all AI assistants)
 7. **Read TDD docs before major changes** - Understand architectural patterns
 8. **Check existing patterns** - Don't reinvent, follow established conventions
 9. **Document as you go** - Update relevant docs when making changes

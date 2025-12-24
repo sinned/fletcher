@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+### Changed
+- **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
+
 ## [Server 1.3.0] - 2025-12-24
 ### Added
 - **MCP**: Enhanced request logging to capture accurate assistant type (Claude, Cursor, ChatGPT, etc.)
