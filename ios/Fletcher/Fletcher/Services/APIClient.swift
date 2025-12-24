@@ -17,7 +17,14 @@ class APIClient: ObservableObject {
     
     func syncLocations() {
         let unsynced = LocationStore.shared.getUnsynced()
-        guard !unsynced.isEmpty else { return }
+        guard !unsynced.isEmpty else {
+            DispatchQueue.main.async { self.isSyncing = false }
+            return
+        }
+        
+        // Batch limit based on server constraints
+        let batchSize = 100
+        let batch = Array(unsynced.prefix(batchSize))
         
         DispatchQueue.main.async {
             self.isSyncing = true
@@ -42,7 +49,7 @@ class APIClient: ObservableObject {
             let timestamp: Date
         }
         
-        let payload = unsynced.map { loc in
+        let payload = batch.map { loc in
             LocationDTO(
                 latitude: loc.latitude,
                 longitude: loc.longitude,
@@ -67,30 +74,40 @@ class APIClient: ObservableObject {
         }
         
         URLSession.shared.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
-                self.isSyncing = false
-                self.lastSyncAttempt = Date()
-            }
-            
             if let error = error {
                 print("Sync failed: \(error)")
-                DispatchQueue.main.async { self.lastSyncError = error.localizedDescription }
+                DispatchQueue.main.async {
+                    self.isSyncing = false
+                    self.lastSyncError = error.localizedDescription
+                }
                 return
             }
             
             if let httpResponse = response as? HTTPURLResponse {
                 if httpResponse.statusCode == 200 {
                     // Mark as synced
-                    let ids = unsynced.map { $0.id }
+                    let ids = batch.map { $0.id }
                     DispatchQueue.main.async {
                         LocationStore.shared.markSynced(ids)
+                        
+                        // Check if there are more
+                        if unsynced.count > batchSize {
+                            print("Synced batch of \(batchSize). Remaining: \(unsynced.count - batchSize). Recursively syncing next batch.")
+                            // Recursively sync next batch
+                            // Add a slight delay to allow UI to breathe? async is fine.
+                            self.syncLocations()
+                        } else {
+                            print("Synced all \(ids.count) locations")
+                            self.isSyncing = false
+                            self.lastSyncAttempt = Date()
+                        }
                     }
-                    print("Synced \(ids.count) locations")
                 } else if httpResponse.statusCode == 401 {
                     print("401 Unauthorized. Clearing key and re-registering.")
                     UserDefaults.standard.removeObject(forKey: "apiKey")
                     DispatchQueue.main.async {
-                        self.lastSyncError = "Auth invalid. Re-registering..." 
+                        self.lastSyncError = "Auth invalid. Re-registering..."
+                        self.isSyncing = false
                     }
                     Task {
                         await self.registerDevice()
@@ -103,7 +120,10 @@ class APIClient: ObservableObject {
                         errorMsg = String(describing: response)
                     }
                     print("Sync server error: \(errorMsg)")
-                    DispatchQueue.main.async { self.lastSyncError = "Server Error: \(errorMsg)" }
+                    DispatchQueue.main.async {
+                        self.lastSyncError = "Server Error: \(errorMsg)"
+                        self.isSyncing = false
+                    }
                 }
             }
         }.resume()

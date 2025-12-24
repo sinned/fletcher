@@ -5,6 +5,7 @@
 - **Settings**: Updated retention policy options to support "Indefinite".
 - **Fix**: Retention settings are now strictly enforced locally (previously ignored).
 - **Sync**: Retention settings changes are now synced to the server instantly.
+- **Sync**: Implemented batch uploading (100 items per request) to respect server limits.
 
 ## [Server 1.1.4] - 2025-12-23
 ### Fixed
