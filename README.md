@@ -14,6 +14,10 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 - **Data Management**:
     - **Local History**: View logs in List or Map format.
     - **Delete History**: Securely clear all local data with confirmation.
+- **Web Interface**:
+    - **Landing Page**: Modern landing page ("Travel Assistant" theme) at root.
+    - **Legal**: Privacy Policy (`/privacy.html`) and Terms of Service (`/terms.html`).
+    - **Status**: Server statistics available at `/status/`.
 - **MCP Integration**: Fully functional Model Context Protocol server for Claude integration. Supports advanced location queries (radius, trajectory, frequency).
 - **Synchronization**:
     - **Cloud Sync**: Securely uploads location history to your private server.
@@ -61,7 +65,8 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 5. Build and run on a device (Simulator doesn't support "Always" location well).
 
 ## API Endpoints
-- `GET /health`: Health check
+- `GET /health`: Health check (DB + PostGIS)
+- `GET /status/`: Server statistics (Users, Locations)
 - `POST /api/locations`: Upload location history
 - `GET /api/locations`: Get location history (paginated)
 - `POST /api/mcp/generate-token`: Generate MCP connection token
@@ -72,4 +77,5 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying the MCP Server to Render.
 
 ## Verification
-- Visit `http://localhost:3000/health` (or your Render URL) to check if server is running.
+- Visit `http://localhost:3000/status/` to check stats.
+- Visit `http://localhost:3000/` to verify the Landing Page.

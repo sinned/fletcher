@@ -1,5 +1,11 @@
 # Changelog
 
+## [Server 1.2.0] - 2025-12-23
+### Added
+- **Web**: Added Landing Page, Privacy Policy, and Terms of Service using `@fastify/static`.
+- **API**: Moved status check from root `/` to `/status/`.
+- **Config**: Added `public/` directory for static assets.
+
 ## [1.3.0] - 2025-12-23
 ### Added
 - **Security**: Implemented Keychain for secure API key storage.

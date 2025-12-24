@@ -6,7 +6,8 @@ import { startCleanupJob } from './cron';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import cors from '@fastify/cors';
-import requestId from 'fastify-request-id';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const requestId = require('fastify-request-id');
 import crypto from 'crypto';
 
 
@@ -44,9 +45,19 @@ import { mcpServerPlugin } from './mcp';
 
 // ... imports
 
+import fastifyStatic from '@fastify/static';
+
+// ... imports
+
 server.register(mobileRoutes, { prefix: '/api' });
 server.register(mcpApiRoutes, { prefix: '/api/mcp' }); // Mounted at /api/mcp
 server.register(require('@fastify/formbody'));
+
+// Serve static files
+server.register(fastifyStatic, {
+    root: join(__dirname, '../public'),
+    prefix: '/', // optional: default is '/'
+});
 
 // Register MCP Server Plugin
 // No prefix, because it handles /sse and /messages directly
@@ -85,8 +96,8 @@ server.get('/health', async (request, reply) => {
     }
 });
 
-// Root route - stats
-server.get('/', async (request, reply) => {
+// Status route - stats (Moved from /)
+server.get('/status/', async (request, reply) => {
     try {
         const usersRes = await query('SELECT COUNT(*) as count FROM users');
         const locationsRes = await query('SELECT COUNT(*) as count FROM locations');
