@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.8] - 2025-12-23
+### Changed
+- **Config**: Enabled support for all interface orientations (Portrait, Landscape Left/Right) on iPhone and iPad.
+
 ## [1.2.7] - 2025-12-23
 ### Fixed
 - **Settings**: Updated `onChange` to use the new two-parameter syntax, resolving an iOS 17 deprecation warning.
