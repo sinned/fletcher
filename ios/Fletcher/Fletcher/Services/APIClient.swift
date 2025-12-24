@@ -310,8 +310,20 @@ class APIClient: ObservableObject {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+        
+        if httpResponse.statusCode == 401 {
+            // Auth failed, potentially clear key?
+            // KeychainManager.delete(key: "apiKey") 
+            // For now, just throw informative error so UI sees it
+            throw NSError(domain: "APIClient", code: 401, userInfo: [NSLocalizedDescriptionKey: "Authentication failed. Relaunch app to re-register."])
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "APIClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Server Error \(httpResponse.statusCode): \(errorText)"])
         }
         
         let decoder = JSONDecoder()
