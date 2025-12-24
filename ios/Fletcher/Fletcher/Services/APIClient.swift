@@ -223,6 +223,7 @@ class APIClient: ObservableObject {
         } catch {
             print("Encoding error: \(error)")
     }
+    }
 
     func deleteServerHistory() async throws {
         guard let url = URL(string: "\(baseURL.absoluteString)/locations") else { return }
