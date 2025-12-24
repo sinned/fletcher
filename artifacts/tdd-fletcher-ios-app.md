@@ -1,6 +1,6 @@
 # Technical Design Document (TDD) - Fletcher iOS App
 
-**Version:** 1.3
+**Version:** 1.5
 **Date:** 2025-12-24
 **Status:** IMPLEMENTED/LIVE
 
@@ -81,6 +81,7 @@ The app follows a **Model-View-ViewModel (MVVM)** architectural pattern, utilizi
     - `POST /api/mcp/generate-token`
     - `GET /api/mcp/tokens`
     - `DELETE /api/mcp/tokens/{id}`
+    - `GET /api/access-logs`: Fetches MCP request history with pagination and filtering
 
 - **Sync Strategy**: 
   - `syncLocations()`: Iteratively syncs unsynced points in batches of 50 (`AppConstants.Sync.batchSize`) to avoid timeouts.
@@ -125,6 +126,20 @@ struct MCPToken: Decodable, Identifiable {
 }
 ```
 
+#### MCPRequest
+Represents a logged MCP request for transparency.
+```swift
+struct MCPRequest: Codable, Identifiable {
+    let id: UUID
+    let assistantType: String
+    let endpoint: String
+    let timestamp: Date
+    let locationCount: Int
+    let queryParams: [String: AnyCodable]?
+    let responseTimeMs: Int?
+}
+```
+
 #### AppSettings (UserDefaults)
 Lightweight user preferences.
 - `serverURL`: String (Default: `https://fletcher-server.onrender.com`)
@@ -142,7 +157,9 @@ The app uses a `TabView` in `MainView`.
   - **Settings**: Configuration, MCP Connections, and Debug tools.
 
 ### 5.2 Key Views
-- **MCPConnectionView**: Manages MCP tokens. Allows generating new tokens (displayed once) and revoking existing ones. Shows server URL validation status.
+- **MCPConnectionView**: Manages MCP tokens in the Assistants tab. Allows generating new tokens (displayed once) and revoking existing ones. Provides direct navigation to Request History.
+- **MCPRequestHistoryView**: Displays all MCP requests grouped by date with pull-to-refresh and pagination. Tappable rows navigate to detailed view.
+- **MCPRequestDetailView**: Shows comprehensive request information including endpoint, assistant type, timestamp, location count, query parameters (formatted JSON), response time (color-coded), and request UUID.
 - **SplashScreen**: Shows on first launch or if API Key is missing, handling Device Registration. Displays App Version.
 - **Map View**: Uses `MapKit` (SwiftUI). Features a custom "Recenter" button that also triggers manual logging.
 

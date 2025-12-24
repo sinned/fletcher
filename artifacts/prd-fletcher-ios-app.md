@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD) - Fletcher iOS MVP
 
-**Date:** 2025-12-14
+**Date:** 2025-12-24
 **Status:** Implemented (MVP)
 
 ## 1. Executive Summary
@@ -53,7 +53,9 @@ The system consists of two main components:
 -   **Settings Tab**:
     -   **Server Configuration**: Configurable Server URL (saved in `UserDefaults`).
     -   **Privacy**: Precision and retention controls.
-    -   **MCP Integration**: UI to generate and view MCP tokens for Claude connection.
+-   **Assistants Tab**: 
+    -   **MCP Integration**: UI to generate and view MCP tokens for Claude/Cursor/ChatGPT connection.
+    -   **Request History**: View all AI assistant requests with full transparency - see what endpoints were called, query parameters used, and response times. Tappable detail view with color-coded performance indicators.
 
 ## 4. Specific Implementation Details
 
@@ -87,5 +89,6 @@ struct LocationPoint: Codable, Identifiable {
 
 ## 6. Future Roadmap
 -   [x] OAuth2 Authentication (Replaced by API Key/MCP Token model).
+-   [x] MCP Server-Sent Events (SSE) for real-time AI context.
+-   [x] MCP Request History and Transparency.
 -   [ ] Battery optimization (adaptive tracking).
--   [ ] MCP Server-Sent Events (SSE) for real-time AI context.

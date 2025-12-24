@@ -1,7 +1,7 @@
-# Technical Design Document - Fletcher Server v2.1
+# Technical Design Document - Fletcher Server v2.2
 
-**Version:** 2.1 (Implemented)
-**Last Updated:** December 2025
+**Version:** 2.2 (Implemented)
+**Last Updated:** December 24, 2025
 **Status:** IMPLEMENTED/LIVE
 
 ---
@@ -110,7 +110,7 @@ CREATE INDEX idx_locations_geog ON locations USING GIST(point);
 CREATE TABLE assistant_connections (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    assistant_type TEXT NOT NULL CHECK (assistant_type IN ('claude')),
+    assistant_type TEXT NOT NULL CHECK (assistant_type IN ('claude', 'chatgpt', 'cursor', 'other')),
     mcp_token TEXT UNIQUE NOT NULL,
     token_name TEXT,
     connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -220,7 +220,7 @@ These endpoints are called by the mobile app to manage MCP tokens. Auth: `fletch
 #### 1. Generate MCP Token
 **POST** `/api/mcp/generate-token`
 
-**Request:** `{ "assistant_type": "claude", "token_name": "My MacBook" }`
+**Request:** `{ "assistant_type": "claude|chatgpt|cursor|other", "token_name": "My MacBook" }`
 **Response:** `{ "token": "mcp_...", "sse_url": "...", "expires_at": "..." }`
 
 #### 2. List MCP Tokens
@@ -232,6 +232,42 @@ These endpoints are called by the mobile app to manage MCP tokens. Auth: `fletch
 **DELETE** `/api/mcp/tokens/:id`
 
 Revokes access immediately.
+
+#### 4. Get Access Logs
+**GET** `/api/access-logs`
+
+Retrieve MCP request history with pagination and filtering.
+
+**Query Parameters:**
+- `limit`: Number of records (default: 50, max: 500)
+- `offset`: Pagination offset (default: 0)
+- `assistant_type`: Filter by assistant type (optional)
+- `start_date`: Filter by date range start (ISO 8601, optional)
+- `end_date`: Filter by date range end (ISO 8601, optional)
+
+**Response:**
+```json
+{
+  "logs": [
+    {
+      "id": "uuid",
+      "assistant_type": "claude",
+      "endpoint": "get_location_history",
+      "timestamp": "2025-12-24T00:51:00Z",
+      "location_count": 42,
+      "query_params": { "limit": 100, "offset": 0 },
+      "response_time_ms": 156
+    }
+  ],
+  "metadata": {
+    "total_count": 128,
+    "returned_count": 50,
+    "has_more": true,
+    "limit": 50,
+    "offset": 0
+  }
+}
+```
 
 ---
 
@@ -256,8 +292,31 @@ Returns recent history (last 24h by default), respecting privacy settings.
 ### Tools
 
 **1. get_location_history**
-Arguments: `start_date` (ISO), `end_date` (ISO).
-Returns GeoJSON FeatureCollection of locations within range.
+Arguments: `start_date` (ISO, optional), `end_date` (ISO, optional), `limit`, `offset`, `center_lat`, `center_lon`, `radius_meters`.
+Returns GeoJSON FeatureCollection of locations within range. All calls are logged with query parameters and response times.
+
+**2. get_current_location**
+No arguments. Returns the most recent location fix.
+
+**3. get_recent_trajectory**
+Arguments: `limit` (default 10).
+Returns recent movement path.
+
+**4. get_frequent_locations**
+Arguments: `limit` (default 5), `days` (default 30).
+Returns frequently visited locations with visit counts.
+
+### Logging
+
+All MCP tool and resource calls are logged to the `access_logs` table with:
+- Accurate assistant type (extracted from token)
+- Endpoint name
+- Query parameters (JSONB)
+- Location count returned
+- Response time in milliseconds
+- Timestamp
+
+This provides full transparency for users to see what AI assistants are requesting.
 
 ---
 
