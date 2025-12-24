@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createMCPToken, listMCPTokens, revokeMCPToken } from '../models/auth';
+import rateLimit from '@fastify/rate-limit';
 
 const getBaseUrl = () => {
     if (process.env.BASE_URL) return process.env.BASE_URL;
@@ -11,6 +12,22 @@ const getBaseUrl = () => {
 };
 
 export default async function mcpApiRoutes(fastify: FastifyInstance) {
+    // Register rate limiter
+    await fastify.register(rateLimit, {
+        max: 10,
+        timeWindow: '15 minutes',
+        cache: 10000,
+        allowList: ['127.0.0.1'],
+        errorResponseBuilder: (req, context) => {
+            return {
+                error: {
+                    code: 'RATE_LIMIT_EXCEEDED',
+                    message: `Rate limit exceeded, retry after ${context.after}`
+                }
+            };
+        }
+    });
+
     // Auth Middleware: Check API Key (reuse logic from mobile routes?)
     // Actually, mobile routes middleware only applies to /api/locations etc.
     // We need to secure these MCP management endpoints with the User's API Key too.

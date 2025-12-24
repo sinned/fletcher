@@ -8,6 +8,10 @@
 ### Added
 - **MCP**: Enhanced `get_location_history` with pagination (`limit`, `offset`), date filtering (`start_date`, `end_date`), and radius search (`center_lat`, `center_lon`, `radius_meters`).
 - **MCP**: Added new tools: `get_current_location`, `get_recent_trajectory`, `get_frequent_locations`.
+- **Performance**: Optimized batch inserts for location storage.
+- **Security**: Added Rate Limiting, CORS support, and Request ID logging.
+- **Monitoring**: Enhanced `/health` check to verify PostGIS connectivity.
+- **Stability**: Added graceful shutdown for SIGTERM/SIGINT.
 - **Schema**: Added schema versioning table and performance indexes.
 
 ### Fixed

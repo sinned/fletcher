@@ -8,18 +8,30 @@ export interface LocationPoint {
 }
 
 export const saveLocations = async (userId: string, locations: LocationPoint[]) => {
-    // Simple batch insert
-    // in production, use a transaction or UNNEST
+    if (locations.length === 0) return;
+
     const client = await db.pool.connect();
     try {
         await client.query('BEGIN');
-        for (const loc of locations) {
-            await client.query(
-                `INSERT INTO locations (user_id, point, accuracy, timestamp)
-         VALUES ($1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $4, $5)`,
-                [userId, loc.longitude, loc.latitude, loc.accuracy, loc.timestamp]
+
+        // Build VALUES clause for batch insert
+        const values: any[] = [];
+        const valueStrings: string[] = [];
+
+        locations.forEach((loc, idx) => {
+            const base = idx * 5;
+            valueStrings.push(
+                `($${base + 1}, ST_SetSRID(ST_MakePoint($${base + 2}, $${base + 3}), 4326), $${base + 4}, $${base + 5})`
             );
-        }
+            values.push(userId, loc.longitude, loc.latitude, loc.accuracy, loc.timestamp);
+        });
+
+        const query = `
+            INSERT INTO locations (user_id, point, accuracy, timestamp)
+            VALUES ${valueStrings.join(', ')}
+        `;
+
+        await client.query(query, values);
         await client.query('COMMIT');
     } catch (e) {
         await client.query('ROLLBACK');
