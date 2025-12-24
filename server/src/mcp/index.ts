@@ -7,7 +7,8 @@ import { validateMCPToken } from '../models/auth';
 import { getPrivacySettings } from '../models/user';
 import { logMCPRequest } from '../models/access_log';
 
-const sessions = new Map<string, SSEServerTransport>();
+// Store sessions with their tokens for validation
+const sessions = new Map<string, { transport: SSEServerTransport, token: string }>();
 
 // Precision Logic
 function applyPrecision(lat: number, lon: number, level: string): [number, number] {
@@ -70,8 +71,21 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         console.log(`[MCP] Client connected. Token validated for user: ${userId}`);
 
+        // Helper to validate token on each request
+        const validateTokenForRequest = async () => {
+            const tokenData = await validateMCPToken(token!);
+            if (!tokenData) {
+                console.log(`[MCP] Token validation failed during request - likely revoked`);
+                throw new Error('Token has been revoked or is invalid');
+            }
+            return tokenData;
+        };
+
         // Resource: Current Location
         mcp.resource('current-location', 'fletcher://location/current', async (uri) => {
+            // Validate token is still valid
+            await validateTokenForRequest();
+
             const startTime = Date.now();
             const loc = await getLatestLocation(userId);
             if (!loc) return { contents: [] };
@@ -99,6 +113,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         // Resource: History (Last 24h, limited by settings)
         mcp.resource('location-history', 'fletcher://location/history', async (uri) => {
+            // Validate token is still valid
+            await validateTokenForRequest();
+
             const startTime = Date.now();
             const end = new Date();
             // Default resource is 24h, but restricted by user setting if < 1 day (e.g. 0)
@@ -139,6 +156,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 radius_meters: z.number().optional().describe("Radius in meters for filtering")
             },
             async ({ start_date, end_date, limit = 100, offset = 0, center_lat, center_lon, radius_meters }) => {
+                // Validate token is still valid
+                await validateTokenForRequest();
+
                 const startTime = Date.now();
                 let features: any[] = [];
                 let logDetails: any = {};
@@ -223,6 +243,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         // Tool: Get Current Location
         mcp.tool('get_current_location', {}, async () => {
+            // Validate token is still valid
+            await validateTokenForRequest();
+
             const startTime = Date.now();
             const loc = await getLatestLocation(userId);
             if (!loc) return { content: [{ type: "text", text: "No location found." }] };
@@ -253,6 +276,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 limit: z.number().optional().default(10).describe("Number of points to return"),
             },
             async ({ limit = 10 }) => {
+                // Validate token is still valid
+                await validateTokenForRequest();
+
                 const startTime = Date.now();
                 const history = await getRecentTrajectory(userId, limit);
                 const features = history.map((loc: any) => {
@@ -285,6 +311,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 days: z.number().optional().default(30).describe("Lookback period in days")
             },
             async ({ limit = 5, days = 30 }) => {
+                // Validate token is still valid
+                await validateTokenForRequest();
+
                 const startTime = Date.now();
                 const clusters = await getFrequentLocations(userId, limit, days);
                 // Format as FeatureCollection of points
@@ -323,7 +352,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
         await mcp.connect(transport);
 
         const sessionId = (transport as any).sessionId;
-        if (sessionId) sessions.set(sessionId, transport);
+        if (sessionId) {
+            sessions.set(sessionId, { transport, token: token! });
+        }
 
         req.raw.on('close', () => {
             if (sessionId) sessions.delete(sessionId);
@@ -335,13 +366,21 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
         console.log(`[MCP] POST /messages sessionId=${sessionId}`);
         if (!sessionId) return res.code(400).send('Missing sessionId');
 
-        const transport = sessions.get(sessionId);
-        if (!transport) {
+        const session = sessions.get(sessionId);
+        if (!session) {
             console.log(`[MCP] Session not found: ${sessionId}`);
             return res.code(404).send('Session not found');
         }
 
-        await transport.handlePostMessage(req.raw, res.raw);
+        // Validate token is still valid before processing message
+        const tokenData = await validateMCPToken(session.token);
+        if (!tokenData) {
+            console.log(`[MCP] Token revoked for session ${sessionId}, closing connection`);
+            sessions.delete(sessionId);
+            return res.code(403).send('Token has been revoked');
+        }
+
+        await session.transport.handlePostMessage(req.raw, res.raw);
         console.log(`[MCP] Handled Post Message for ${sessionId}`);
     });
 };
