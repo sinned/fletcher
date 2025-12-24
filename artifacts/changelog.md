@@ -4,6 +4,16 @@
 ### Changed
 - **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
 
+## [Server 1.3.1] - 2025-12-24
+### Changed
+- **Web**: Updated Privacy Policy to clarify server storage and debug access.
+- **Web**: Refined landing page aesthetics and moved navigation to footer.
+- **Web**: Updated "Join the Beta" link to TestFlight.
+
+## [1.5.2] - 2025-12-24
+### Added
+- **Settings**: Added link to Privacy Policy in the Privacy section.
+
 ## [Server 1.3.0] - 2025-12-24
 ### Added
 - **MCP**: Enhanced request logging to capture accurate assistant type (Claude, Cursor, ChatGPT, etc.)

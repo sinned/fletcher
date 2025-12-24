@@ -1,6 +1,8 @@
+/* CSS Reset & Variables */
 :root {
   --bg-color: #0d1117;
   --text-color: #c9d1d9;
+  --text-muted: #8b949e;
   --accent-color: #2f81f7;
   --accent-hover: #58a6ff;
   --border-color: #30363d;
@@ -22,15 +24,19 @@ body {
   max-width: 800px;
   margin: 0 auto;
   padding: 2rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
+/* Header */
 header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
+  /* Center on mobile by default */
   align-items: center;
-  padding: 2rem 0;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 3rem;
+  padding: 3rem 0;
+  margin-bottom: 2rem;
 }
 
 .logo {
@@ -40,103 +46,145 @@ header {
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  transition: opacity 0.2s;
 }
 
-.nav-links a {
-  color: var(--text-color);
-  text-decoration: none;
-  margin-left: 2rem;
-  font-size: 0.9rem;
-  transition: color 0.2s;
+.logo:hover {
+  opacity: 0.8;
 }
 
-.nav-links a:hover {
-  color: white;
-}
-
-main {
-  text-align: center;
-  padding: 4rem 0;
-}
-
+/* Typography */
 h1 {
-  font-size: 3.5rem;
+  font-size: 2.5rem;
   color: white;
   margin-bottom: 1rem;
-  line-height: 1.1;
+  line-height: 1.2;
   letter-spacing: -0.02em;
 }
 
+@media (min-width: 768px) {
+  h1 {
+    font-size: 3.5rem;
+  }
+}
+
 .subtitle {
-  font-size: 1.5rem;
-  color: #8b949e;
+  font-size: 1.25rem;
+  color: var(--text-muted);
   margin-bottom: 3rem;
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
+  font-weight: 400;
 }
 
-.cta-button {
-  display: inline-block;
-  background-color: var(--accent-color);
-  color: white;
-  padding: 1rem 2rem;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: 600;
-  transition: background-color 0.2s;
-}
-
-.cta-button:hover {
-  background-color: var(--accent-hover);
+/* Main Content */
+main {
+  flex: 1;
+  /* Push footer down */
+  text-align: center;
 }
 
 .features {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 2rem;
-  margin-top: 5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 4rem;
   text-align: left;
 }
 
 .feature-card {
   background: var(--card-bg);
   padding: 2rem;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid var(--border-color);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .feature-card h3 {
   color: white;
   margin-top: 0;
+  font-size: 1.2rem;
+  margin-bottom: 0.75rem;
 }
 
+.feature-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* Buttons */
+.cta-button {
+  display: inline-block;
+  background-color: var(--accent-color);
+  color: white;
+  padding: 1rem 2.5rem;
+  border-radius: 100px;
+  /* Pill shape */
+  text-decoration: none;
+  font-weight: 600;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.cta-button:hover {
+  background-color: var(--accent-hover);
+  transform: scale(1.02);
+}
+
+/* Footer */
 footer {
-  margin-top: 5rem;
-  padding-top: 2rem;
+  margin-top: 6rem;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
   border-top: 1px solid var(--border-color);
   text-align: center;
   font-size: 0.9rem;
-  color: #8b949e;
+  color: var(--text-muted);
+}
+
+footer .footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
 footer a {
-  color: #8b949e;
-  margin: 0 1rem;
+  color: var(--text-muted);
   text-decoration: none;
+  transition: color 0.2s;
 }
 
 footer a:hover {
   color: var(--accent-color);
 }
 
-/* Page content specific */
+/* Page Specific */
 .page-content {
   text-align: left;
+  max-width: 680px;
+  margin: 0 auto;
 }
 
 .page-content h2 {
   color: white;
-  margin-top: 2rem;
+  margin-top: 2.5rem;
+  font-size: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.page-content p,
+.page-content li {
+  font-size: 1.05rem;
+  color: var(--text-color);
 }

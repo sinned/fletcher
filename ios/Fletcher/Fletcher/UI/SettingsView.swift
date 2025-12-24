@@ -19,6 +19,10 @@ struct SettingsView: View {
                         Text(precisionLabel)
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        
+                        if let url = URL(string: "\(serverURL)/privacy.html") {
+                            Link("Privacy Policy", destination: url)
+                        }
                     }
                     
                     Picker("Retention Period", selection: $retentionDays) {
