@@ -22,6 +22,10 @@
 - **UX**: Added "Reset to Default" button for Server URL.
 - **Error Handling**: Improved error messages for invalid API keys/authentication failures.
 
+## [1.4.2] - 2025-12-24
+### Fixed
+- **Critical**: Fixed bug where user ID was regenerated on every app build, causing loss of connection to existing tokens and location history.
+
 ## [1.3.0] - 2025-12-23
 ### Added
 - **Security**: Implemented Keychain for secure API key storage.
