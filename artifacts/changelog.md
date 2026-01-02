@@ -4,6 +4,13 @@
 ### Changed
 - **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
 
+## [1.6.1] - 2026-01-01
+### Fixed
+- **Sync**: Fixed critical bug where broken authentication (401) would not auto-recover.
+- **Sync**: Added conflict handling (409) to automatically heal stuck user registrations by generating new IDs.
+- **History**: "Download History" now recursively fetches ALL history from the server, fixing truncation issues.
+- **Config**: Added missing Location Usage Descriptions to `Info.plist` to fix permission crashes.
+
 ## [Server 1.3.1] - 2025-12-24
 ### Changed
 - **Web**: Updated Privacy Policy to clarify server storage and debug access.

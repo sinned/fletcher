@@ -105,8 +105,9 @@ class APIClient: ObservableObject {
                 await MainActor.run {
                     self.lastSyncError = "Auth invalid. Re-registering..."
                 }
-                // Trigger re-registration if needed, or let user handle it
-                // await registerDevice() // Dangerous to do manually here loops
+                // Attempt to re-register immediately to fix the state
+                await registerDevice()
+                
                 throw URLError(.userAuthenticationRequired)
             } else {
                 let errorMsg = String(data: data, encoding: .utf8) ?? String(describing: response)
@@ -115,7 +116,7 @@ class APIClient: ObservableObject {
         }
     }
     
-    func fetchHistory(limit: Int = 5000, before: Date? = nil, completion: @escaping ([LocationPoint]) -> Void) {
+    func fetchHistory(limit: Int = 5000, before: Date? = nil) async throws -> [LocationPoint] {
         var urlComp = URLComponents(string: "\(baseURL.absoluteString)/locations")!
         var queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
         
@@ -125,7 +126,7 @@ class APIClient: ObservableObject {
         }
         urlComp.queryItems = queryItems
         
-        guard let url = urlComp.url else { return }
+        guard let url = urlComp.url else { throw URLError(.badURL) }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -133,60 +134,72 @@ class APIClient: ObservableObject {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
         
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Fetch history failed: \(error)")
-                return
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        if httpResponse.statusCode == 401 {
+             await registerDevice()
+             throw URLError(.userAuthenticationRequired)
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw NSError(domain: "APIClient", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorText])
+        }
+        
+        struct HistoryResponse: Decodable {
+            struct RemoteLocation: Decodable {
+                let id: UUID
+                let latitude: Double
+                let longitude: Double
+                let accuracy: Double
+                let timestamp: String
             }
-            
-            guard let httpResponse = response as? HTTPURLResponse else { return }
-            guard let data = data else { return }
-            
-            if !(200...299).contains(httpResponse.statusCode) {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                print("Server returned error \(httpResponse.statusCode): \(errorText)")
-                return
-            }
-            
-            struct HistoryResponse: Decodable {
-                struct RemoteLocation: Decodable {
-                    let id: UUID
-                    let latitude: Double
-                    let longitude: Double
-                    let accuracy: Double
-                    let timestamp: String
-                }
-                let locations: [RemoteLocation]
-            }
-            
-            do {
-                let res = try JSONDecoder().decode(HistoryResponse.self, from: data)
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let locations: [RemoteLocation]
+        }
+        
+        let res = try JSONDecoder().decode(HistoryResponse.self, from: data)
+        
+        return res.locations.compactMap { loc -> LocationPoint? in
+            guard let date = ISO8601DateFormatter.fletcherFormatter.date(from: loc.timestamp) else { return nil }
+            return LocationPoint(
+                id: loc.id,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+                accuracy: loc.accuracy,
+                timestamp: date,
+                synced: true
+            )
+        }
+    }
+    
+    func fetchAllHistory(progress: ((Int) -> Void)? = nil) async throws -> [LocationPoint] {
+        var allPoints: [LocationPoint] = []
+        var hasMore = true
+        var lastDate: Date? = nil
+        let batchSize = 1000 // Smaller batch for smoother progress updates
+        
+        while hasMore {
+            let chunk = try await fetchHistory(limit: batchSize, before: lastDate)
+            if chunk.isEmpty {
+                hasMore = false
+            } else {
+                allPoints.append(contentsOf: chunk)
+                lastDate = chunk.last?.timestamp
                 
-                let points = res.locations.compactMap { loc -> LocationPoint? in
-                    // Handle ISO string parsing manually or via formatter
-                    // Server sends standard ISO from Postgres usually
-                    // Let's try flexible parsing or standard
-                    guard let date = ISO8601DateFormatter.fletcherFormatter.date(from: loc.timestamp) else { return nil }
-                    return LocationPoint(
-                        id: loc.id,
-                        latitude: loc.latitude,
-                        longitude: loc.longitude,
-                        accuracy: loc.accuracy,
-                        timestamp: date,
-                        synced: true // It came from server
-                    )
+                await MainActor.run {
+                    progress?(allPoints.count)
                 }
                 
-                DispatchQueue.main.async {
-                    completion(points)
+                if chunk.count < batchSize {
+                    hasMore = false
                 }
-            } catch {
-                print("Decoding error: \(error)")
-                // print(String(data: data, encoding: .utf8) ?? "")
             }
-        }.resume()
+        }
+        return allPoints
     }
 
     // MARK: - Settings
@@ -246,11 +259,11 @@ class APIClient: ObservableObject {
 
     // MARK: - Registration
     
-    func registerDevice() async {
-        if apiKey != nil { return } // Already registered
+    func registerDevice(forceNew: Bool = false) async {
+        if !forceNew && apiKey != nil { return } // Already registered
         
         let id: UUID
-        if let existingId = UserDefaults.standard.string(forKey: "userId"), let uuid = UUID(uuidString: existingId) {
+        if !forceNew, let existingId = UserDefaults.standard.string(forKey: "userId"), let uuid = UUID(uuidString: existingId) {
             id = uuid
             print("Reusing existing User ID: \(existingId)")
         } else {
@@ -270,16 +283,21 @@ class APIClient: ObservableObject {
             request.httpBody = try JSONEncoder().encode(body)
             let (data, response) = try await URLSession.shared.data(for: request)
             
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 {
-                struct RegisterResponse: Decodable {
-                    let api_key: String
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 201 {
+                    struct RegisterResponse: Decodable {
+                        let api_key: String
+                    }
+                    let res = try JSONDecoder().decode(RegisterResponse.self, from: data)
+                    _ = KeychainManager.save(key: "apiKey", data: res.api_key)
+                    UserDefaults.standard.set(id.uuidString, forKey: "userId") // Store ID too
+                    print("Registered with API Key: \(res.api_key)")
+                } else if httpResponse.statusCode == 409 {
+                    print("Registration 409 Conflict. Likely existing user without key. Retrying with new ID...")
+                    await registerDevice(forceNew: true)
+                } else {
+                    print("Registration failed: \(httpResponse.statusCode)")
                 }
-                let res = try JSONDecoder().decode(RegisterResponse.self, from: data)
-                _ = KeychainManager.save(key: "apiKey", data: res.api_key)
-                UserDefaults.standard.set(id.uuidString, forKey: "userId") // Store ID too
-                print("Registered with API Key: \(res.api_key)")
-            } else {
-                print("Registration failed: \(response)")
             }
         } catch {
             print("Registration error: \(error)")

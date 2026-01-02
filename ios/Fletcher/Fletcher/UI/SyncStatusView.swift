@@ -5,6 +5,9 @@ struct SyncStatusView: View {
     @EnvironmentObject var store: LocationStore
     @Environment(\.presentationMode) var presentationMode
     
+    @State private var downloadingHistory = false
+    @State private var downloadProgress = 0
+
     var body: some View {
         NavigationView {
             List {
@@ -75,14 +78,32 @@ struct SyncStatusView: View {
                     .disabled(api.isSyncing)
                     
                     Button(action: {
-                        api.fetchHistory { points in
-                            store.mergeLocations(points)
+                        downloadingHistory = true
+                        downloadProgress = 0
+                        Task {
+                            do {
+                                let points = try await api.fetchAllHistory { count in
+                                    downloadProgress = count
+                                }
+                                store.mergeLocations(points)
+                            } catch {
+                                print("Download failed: \(error)")
+                            }
+                            downloadingHistory = false
                         }
                     }) {
-                        Text("Download History from Server")
-                            .foregroundColor(.blue)
+                        if downloadingHistory {
+                             HStack {
+                                ProgressView()
+                                Text("Downloading... \(downloadProgress)")
+                                    .foregroundColor(.blue)
+                             }
+                        } else {
+                             Text("Download History from Server")
+                                .foregroundColor(.blue)
+                        }
                     }
-                    .disabled(api.isSyncing)
+                    .disabled(api.isSyncing || downloadingHistory)
                 }
                 
                 Section(footer: Text("Fletcher syncs automatically in the background when significant location changes are detected.")) {
