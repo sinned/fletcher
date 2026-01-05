@@ -241,8 +241,8 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             }
         );
 
-        // Tool: Get Current Location
-        mcp.tool('get_current_location', {}, async () => {
+        // Tool: Get Latest Location
+        mcp.tool('get_latest_location', {}, async () => {
             // Validate token is still valid
             await validateTokenForRequest();
 
@@ -252,7 +252,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
             const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
 
-            await logAccess(userId, assistantType, 'get_current_location', 1, undefined, startTime);
+            await logAccess(userId, assistantType, 'get_latest_location', 1, undefined, startTime);
 
             return {
                 content: [{

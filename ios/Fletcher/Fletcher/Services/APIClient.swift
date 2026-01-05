@@ -68,7 +68,15 @@ class APIClient: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        if let key = apiKey {
+        let currentKey = apiKey
+        let currentUserId = UserDefaults.standard.string(forKey: "userId")
+        
+        if currentKey == nil && currentUserId != nil {
+            print("Sync Aborted: UserID exists but API Key is inaccessible (likely locked).")
+            throw NSError(domain: "APIClient", code: -999, userInfo: [NSLocalizedDescriptionKey: "Keychain unavailable (locked)"])
+        }
+        
+        if let key = currentKey {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
         

@@ -4,6 +4,10 @@
 ### Changed
 - **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
 
+## [Server 1.4.1] - 2026-01-04
+### Changed
+- **MCP**: Renamed tool `get_current_location` to `get_latest_location` to clarify that it returns the latest synced location rather than a real-time fix.
+
 ## [1.6.1] - 2026-01-01
 ### Fixed
 - **Sync**: Fixed critical bug where broken authentication (401) would not auto-recover.
