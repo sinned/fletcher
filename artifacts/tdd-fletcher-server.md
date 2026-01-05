@@ -295,7 +295,7 @@ Returns recent history (last 24h by default), respecting privacy settings.
 Arguments: `start_date` (ISO, optional), `end_date` (ISO, optional), `limit`, `offset`, `center_lat`, `center_lon`, `radius_meters`.
 Returns GeoJSON FeatureCollection of locations within range. All calls are logged with query parameters and response times.
 
-**2. get_current_location**
+**2. get_latest_location**
 No arguments. Returns the most recent location fix.
 
 **3. get_recent_trajectory**

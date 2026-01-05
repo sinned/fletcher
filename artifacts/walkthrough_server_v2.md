@@ -14,7 +14,7 @@ Implemented major enhancements, critical code review fixes, and performance impr
 
 ### 2. MCP Server Layer ([index.ts](file:///Users/dennisyang/Antigravity/fletcher/server/src/mcp/index.ts))
 - **Enhanced `get_location_history`**: Supports pagination, filtering, and radius.
-- **New Tools**: `get_current_location`, `get_recent_trajectory`, `get_frequent_locations`.
+- **New Tools**: `get_latest_location`, `get_recent_trajectory`, `get_frequent_locations`.
 
 ## Fixes & Improvements
 

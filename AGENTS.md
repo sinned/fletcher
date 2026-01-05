@@ -865,7 +865,7 @@ LOG_LEVEL=info
 - `fletcher://location/history` - 24h history FeatureCollection
 
 **Tools:**
-- `get_current_location()` - Current position
+- `get_latest_location()` - Latest synced position
 - `get_location_history(start_date, end_date, limit, offset, center_lat, center_lon, radius_meters)` - Advanced queries
 - `get_recent_trajectory(limit)` - Movement path
 - `get_frequent_locations(limit, days)` - Visit clusters

@@ -12,8 +12,8 @@ server/dist/
 server/.env
 server/coverage/
 
-# Xcode (if any project files eventually end up here)
-*.xcodeproj
-*.xcworkspace
+# Xcode
+!*.xcodeproj
+*.xcworkspace/
 xcuserdata/
 DerivedData/
