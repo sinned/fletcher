@@ -7,6 +7,8 @@
 ## [Server 1.4.1] - 2026-01-04
 ### Changed
 - **MCP**: Renamed tool `get_current_location` to `get_latest_location` to clarify that it returns the latest synced location rather than a real-time fix.
+- **Web**: Updated marketing homepage to reflect full feature set (Privacy, MCP, Transparency).
+- **Web**: Updated copyright dates to 2026.
 
 ## [1.6.1] - 2026-01-01
 ### Fixed
