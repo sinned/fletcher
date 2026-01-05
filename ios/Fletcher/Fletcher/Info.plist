@@ -22,5 +22,9 @@
     <string>Fletcher needs your location to track your history.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Fletcher tracks your location in the background to build your history.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Fletcher needs camera access to capture moments during your travels.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Fletcher needs microphone access to record audio notes.</string>
 </dict>
 </plist>
