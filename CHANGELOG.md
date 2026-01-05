@@ -4,6 +4,16 @@
 ### Changed
 - **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
 
+## [Server 2.0.0] - 2026-01-04
+### Added
+- **MCP**: Added timezone support to all location tools. Tools now accept an optional `timezone` parameter (default `America/Los_Angeles`).
+- **MCP**: Timestamps are now returned in ISO 8601 format with the correct timezone offset.
+- **MCP**: `get_location_history`, `get_latest_location`, `get_recent_trajectory`, and `get_frequent_locations` now return localized times.
+- **Dependencies**: Added `luxon` for robust timezone handling.
+
+### Changed
+- **MCP**: Updated response metadata to include `timezone` and `timezone_offset`.
+
 ## [Server 1.4.1] - 2026-01-04
 ### Changed
 - **MCP**: Renamed tool `get_current_location` to `get_latest_location` to clarify that it returns the latest synced location rather than a real-time fix.

@@ -10,6 +10,10 @@ import { logMCPRequest } from '../models/access_log';
 // Store sessions with their tokens for validation
 const sessions = new Map<string, { transport: SSEServerTransport, token: string }>();
 
+import { DateTime } from 'luxon';
+
+// ... (existing imports)
+
 // Precision Logic
 function applyPrecision(lat: number, lon: number, level: string): [number, number] {
     if (level === 'high') return [lat, lon];
@@ -81,6 +85,27 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             return tokenData;
         };
 
+        // Helper for timezone formatting
+        const formatWithTimezone = (dateStr: string, timezone: string) => {
+            // Assume dateStr is UTC ISO from DB (e.g., 2026-01-04T18:23:56.000Z) or Date object
+            // If it's a string, construct from ISO. If it's a Date, construct from JS Date
+            let dt: DateTime;
+            if (typeof dateStr === 'string') {
+                dt = DateTime.fromISO(dateStr, { zone: 'utc' });
+            } else {
+                dt = DateTime.fromJSDate(dateStr, { zone: 'utc' });
+            }
+
+            // Convert to target timezone
+            const zoned = dt.setZone(timezone);
+
+            return {
+                timestamp: zoned.toISO(), // 2026-01-04T10:23:56-08:00
+                timestamp_utc: dt.toUTC().toISO(),
+                offset: zoned.toFormat('ZZ') // -08:00
+            };
+        };
+
         // Resource: Current Location
         mcp.resource('current-location', 'fletcher://location/current', async (uri) => {
             // Validate token is still valid
@@ -94,6 +119,14 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
             await logAccess(userId, assistantType, 'current-location', 1, undefined, startTime);
 
+            // Default timezone for resources? Let's stick to UTC for raw resources to act as source of truth, 
+            // OR use a user preference if we had it easily accessible. 
+            // For consistency with new tools, we'll keep resources "raw" (UTC) or maybe standard ISO.
+            // But requirements focus on "tools". Let's stick to standard behavior for resources for now (UTC), 
+            // as they are typically consumed programmatically. 
+            // If we want to change resources too:
+            // "Add timezone parameter to all location tools" - implies Tools, not Resources.
+
             return {
                 contents: [{
                     uri: uri.href,
@@ -102,7 +135,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                         geometry: { type: "Point", coordinates: [lon, lat] },
                         properties: {
                             accuracy: loc.accuracy,
-                            timestamp: loc.timestamp,
+                            timestamp: loc.timestamp, // UTC usually
                             precision_level: precision
                         }
                     }),
@@ -147,15 +180,16 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         mcp.tool('get_location_history',
             {
-                start_date: z.string().optional().describe("ISO date string. If provided, end_date is also required."),
-                end_date: z.string().optional(),
+                start_date: z.string().optional().describe("ISO date string (e.g., 2026-01-04). Interpreted in the specified timezone."),
+                end_date: z.string().optional().describe("ISO date string. Interpreted in the specified timezone."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier (e.g., America/Los_Angeles, Europe/London). Defaults to America/Los_Angeles."),
                 limit: z.number().optional().default(100).describe("Max number of results (default 100, max 1000)"),
                 offset: z.number().optional().default(0).describe("Pagination offset"),
                 center_lat: z.number().optional().describe("Latitude for radius filtering"),
                 center_lon: z.number().optional().describe("Longitude for radius filtering"),
                 radius_meters: z.number().optional().describe("Radius in meters for filtering")
             },
-            async ({ start_date, end_date, limit = 100, offset = 0, center_lat, center_lon, radius_meters }) => {
+            async ({ start_date, end_date, timezone = 'America/Los_Angeles', limit = 100, offset = 0, center_lat, center_lon, radius_meters }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
 
@@ -170,34 +204,38 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 let start: Date | undefined;
                 let end: Date | undefined;
 
-                if (start_date) start = new Date(start_date);
-                if (end_date) end = new Date(end_date);
+                // Convert inputs to UTC based on timezone
+                // If just date "2026-01-04", Luxon treats start of day.
+                if (start_date) {
+                    start = DateTime.fromISO(start_date, { zone: timezone }).toJSDate();
+                }
+                if (end_date) {
+                    // Start of day on that date? Or end of day? 
+                    // Usually ranges are inclusive start, exclusive end, or inclusive.
+                    // If user says "2026-01-04", they usually mean that day.
+                    // If it's a full ISO string, use specific time. 
+                    // Let's assume standard ISO behavior.
+                    end = DateTime.fromISO(end_date, { zone: timezone }).toJSDate();
+                }
 
                 // Privacy policy checks can be applied here for start/end if needed
                 // For now, relying on model-level or query-level constraints if any
 
                 // Radius filtering or Standard History
+                let history: any[] = [];
                 if (center_lat !== undefined && center_lon !== undefined && radius_meters !== undefined) {
-                    const history = await getLocationHistoryWithRadius(userId, center_lat, center_lon, radius_meters, { start, end, limit, offset });
-                    features = history.map((loc: any) => {
-                        const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
-                        return {
-                            type: "Feature",
-                            geometry: { type: "Point", coordinates: [lon, lat] },
-                            properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
-                        };
-                    });
+                    history = await getLocationHistoryWithRadius(userId, center_lat, center_lon, radius_meters, { start, end, limit, offset });
 
                     // Count is harder for radius without separate query, simplistic approach:
                     // We won't fetch total count for radius query to avoid performance hit unless requested.
                     // Returning -1 or undefined for total_count if not calculated.
                     // For now, let's just use returned length for returned_count.
                     totalCount = -1;
-                    logDetails = { type: 'radius', center: [center_lat, center_lon], radius: radius_meters };
+                    logDetails = { type: 'radius', center: [center_lat, center_lon], radius: radius_meters, timezone };
 
                 } else {
                     // Standard History
-                    const history = await getLocationHistory(userId, { start, end, limit, offset });
+                    history = await getLocationHistory(userId, { start, end, limit, offset });
 
                     // Get total count for pagination metadata
                     // Only fetch total count if offset is 0 to save resources, or if client needs it.
@@ -208,19 +246,28 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                         // Fallback or full count?
                         totalCount = await getTotalLocationCount(userId);
                     }
-
-                    features = history.map((loc: any) => {
-                        const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
-                        return {
-                            type: "Feature",
-                            geometry: { type: "Point", coordinates: [lon, lat] },
-                            properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
-                        };
-                    });
-                    logDetails = { type: 'history', start, end, limit, offset };
+                    logDetails = { type: 'history', start, end, limit, offset, timezone };
                 }
 
+                features = history.map((loc: any) => {
+                    const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                    const timeData = formatWithTimezone(loc.timestamp, timezone);
+                    return {
+                        type: "Feature",
+                        geometry: { type: "Point", coordinates: [lon, lat] },
+                        properties: {
+                            accuracy: loc.accuracy,
+                            timestamp: timeData.timestamp,
+                            timestamp_utc: timeData.timestamp_utc
+                        }
+                    };
+                });
+
                 await logAccess(userId, assistantType, 'get_location_history', features.length, logDetails, startTime);
+
+                // Get offset from timezone for metadata (approximated from now or first record?)
+                // Just use current offset for that timezone
+                const currentOffset = DateTime.now().setZone(timezone).toFormat('ZZ');
 
                 return {
                     content: [{
@@ -233,7 +280,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                                 returned_count: features.length,
                                 has_more: totalCount > offset + features.length,
                                 limit,
-                                offset
+                                offset,
+                                timezone,
+                                timezone_offset: currentOffset
                             }
                         })
                     }]
@@ -242,40 +291,51 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
         );
 
         // Tool: Get Latest Location
-        mcp.tool('get_latest_location', {}, async () => {
-            // Validate token is still valid
-            await validateTokenForRequest();
+        mcp.tool('get_latest_location',
+            {
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ timezone = 'America/Los_Angeles' }) => {
+                // Validate token is still valid
+                await validateTokenForRequest();
 
-            const startTime = Date.now();
-            const loc = await getLatestLocation(userId);
-            if (!loc) return { content: [{ type: "text", text: "No location found." }] };
+                const startTime = Date.now();
+                const loc = await getLatestLocation(userId);
+                if (!loc) return { content: [{ type: "text", text: "No location found." }] };
 
-            const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                const timeData = formatWithTimezone(loc.timestamp, timezone);
 
-            await logAccess(userId, assistantType, 'get_latest_location', 1, undefined, startTime);
+                await logAccess(userId, assistantType, 'get_latest_location', 1, { timezone }, startTime);
 
-            return {
-                content: [{
-                    type: "text",
-                    text: JSON.stringify({
-                        type: "Feature",
-                        geometry: { type: "Point", coordinates: [lon, lat] },
-                        properties: {
-                            accuracy: loc.accuracy,
-                            timestamp: loc.timestamp,
-                            precision_level: precision
-                        }
-                    })
-                }]
-            };
-        });
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            type: "Feature",
+                            geometry: { type: "Point", coordinates: [lon, lat] },
+                            properties: {
+                                accuracy: loc.accuracy,
+                                timestamp: timeData.timestamp,
+                                timestamp_utc: timeData.timestamp_utc,
+                                precision_level: precision
+                            },
+                            metadata: {
+                                timezone,
+                                timezone_offset: timeData.offset
+                            }
+                        })
+                    }]
+                };
+            });
 
         // Tool: Get Recent Trajectory
         mcp.tool('get_recent_trajectory',
             {
                 limit: z.number().optional().default(10).describe("Number of points to return"),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
             },
-            async ({ limit = 10 }) => {
+            async ({ limit = 10, timezone = 'America/Los_Angeles' }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
 
@@ -283,21 +343,32 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 const history = await getRecentTrajectory(userId, limit);
                 const features = history.map((loc: any) => {
                     const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                    const timeData = formatWithTimezone(loc.timestamp, timezone);
                     return {
                         type: "Feature",
                         geometry: { type: "Point", coordinates: [lon, lat] },
-                        properties: { accuracy: loc.accuracy, timestamp: loc.timestamp }
+                        properties: {
+                            accuracy: loc.accuracy,
+                            timestamp: timeData.timestamp,
+                            timestamp_utc: timeData.timestamp_utc
+                        }
                     };
                 });
 
-                await logAccess(userId, assistantType, 'get_recent_trajectory', features.length, { limit }, startTime);
+                await logAccess(userId, assistantType, 'get_recent_trajectory', features.length, { limit, timezone }, startTime);
+
+                const currentOffset = DateTime.now().setZone(timezone).toFormat('ZZ');
 
                 return {
                     content: [{
                         type: "text",
                         text: JSON.stringify({
                             type: "FeatureCollection",
-                            features
+                            features,
+                            metadata: {
+                                timezone,
+                                timezone_offset: currentOffset
+                            }
                         })
                     }]
                 };
@@ -308,9 +379,10 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
         mcp.tool('get_frequent_locations',
             {
                 limit: z.number().optional().default(5).describe("Number of top locations to return"),
-                days: z.number().optional().default(30).describe("Lookback period in days")
+                days: z.number().optional().default(30).describe("Lookback period in days"),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
             },
-            async ({ limit = 5, days = 30 }) => {
+            async ({ limit = 5, days = 30, timezone = 'America/Los_Angeles' }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
 
@@ -321,26 +393,37 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                     // Start/End are clustered coordinates. Precision applies?
                     // Yes, user privacy applies to these too.
                     const [lat, lon] = applyPrecision(c.latitude, c.longitude, precision);
+                    const firstSeenData = formatWithTimezone(c.first_seen, timezone);
+                    const lastSeenData = formatWithTimezone(c.last_seen, timezone);
+
                     return {
                         type: "Feature",
                         geometry: { type: "Point", coordinates: [lon, lat] },
                         properties: {
                             visit_count: c.visit_count,
-                            first_seen: c.first_seen,
-                            last_seen: c.last_seen,
+                            first_seen: firstSeenData.timestamp,
+                            first_seen_utc: firstSeenData.timestamp_utc,
+                            last_seen: lastSeenData.timestamp,
+                            last_seen_utc: lastSeenData.timestamp_utc,
                             total_time_spent: c.total_time_spent
                         }
                     };
                 });
 
-                await logAccess(userId, assistantType, 'get_frequent_locations', features.length, { limit, days }, startTime);
+                await logAccess(userId, assistantType, 'get_frequent_locations', features.length, { limit, days, timezone }, startTime);
+
+                const currentOffset = DateTime.now().setZone(timezone).toFormat('ZZ');
 
                 return {
                     content: [{
                         type: "text",
                         text: JSON.stringify({
                             type: "FeatureCollection",
-                            features
+                            features,
+                            metadata: {
+                                timezone,
+                                timezone_offset: currentOffset
+                            }
                         })
                     }]
                 };
