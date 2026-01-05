@@ -10,6 +10,12 @@
 - **Web**: Updated marketing homepage to reflect full feature set (Privacy, MCP, Transparency).
 - **Web**: Updated copyright dates to 2026.
 
+## [1.6.2] - 2026-01-04
+### Fixed
+- **Config**: Added `NSCameraUsageDescription` and `NSMicrophoneUsageDescription` to `Info.plist` to resolve Simulator errors and support future media features.
+- **Dev**: Fixed Xcode logging timeout by adding `IDEPreferLogStreaming=YES` to shared scheme.
+
+
 ## [1.6.1] - 2026-01-01
 ### Fixed
 - **Sync**: Fixed critical bug where broken authentication (401) would not auto-recover.
