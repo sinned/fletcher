@@ -92,6 +92,17 @@ export const updatePrivacySettings = async (userId: string, settings: any) => {
     const current = await getPrivacySettings(userId);
     if (!current) throw new Error('User not found');
 
+    // Sync history_access_days with retention_days if missing
+    if (retention_days !== undefined) {
+        if (privacyUpdates.history_access_days === undefined) {
+             if (retention_days === -1) {
+                 privacyUpdates.history_access_days = 30; // Max allowed history access
+             } else if (retention_days > 0) {
+                 privacyUpdates.history_access_days = Math.min(30, retention_days);
+             }
+        }
+    }
+
     // Validate: history_access can't exceed retention
     const newRetention = retention_days ?? current.retention_days;
     const newHistoryDays = privacyUpdates.history_access_days ?? current.history_access_days;

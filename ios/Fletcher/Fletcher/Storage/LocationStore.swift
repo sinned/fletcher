@@ -76,7 +76,7 @@ class LocationStore: ObservableObject {
         DispatchQueue.global(qos: .background).async {
             do {
                 let data = try JSONEncoder().encode(self.locations)
-                try data.write(to: self.fileURL, options: [.atomic, .completeFileProtection])
+                try data.write(to: self.fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             } catch {
                 print("Failed to save locations: \(error)")
             }
@@ -95,10 +95,15 @@ class LocationStore: ObservableObject {
     
     private func cleanup() {
         let defaults = UserDefaults.standard
-        // -1 means indefinite, so check for explicit -1 or use default
-        let retentionDays = defaults.object(forKey: "retentionDays") as? Int ?? AppConstants.Defaults.retentionDays
         
-        // retentionDays <= 0 means indefinite retention
+        var retentionDays = defaults.integer(forKey: "retentionDays")
+        if retentionDays == 0 {
+            if defaults.object(forKey: "retentionDays") == nil {
+                retentionDays = AppConstants.Defaults.retentionDays
+            }
+        }
+        
+        // retentionDays <= 0 means indefinite retention (e.g. -1 is used for indefinite)
         guard retentionDays > 0 else { return }
         
         // Calculate cutoff date

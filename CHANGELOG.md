@@ -4,6 +4,12 @@
 ### Changed
 - **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
 
+## [1.6.3] - 2026-02-21
+### Fixed
+- **History**: Fixed background location history saving failing when the device is locked by updating file protection level.
+- **Settings**: Fixed UserDefaults extraction bug for retentionDays that could cause location history to default back to 30 days unexpectedly.
+- **Server**: Synced `history_access_days` with user `retention_days` updates so that MCP tools can access full history instead of defaulting to 7 days.
+
 ## [Server 2.0.0] - 2026-01-04
 ### Added
 - **MCP**: Added timezone support to all location tools. Tools now accept an optional `timezone` parameter (default `America/Los_Angeles`).
