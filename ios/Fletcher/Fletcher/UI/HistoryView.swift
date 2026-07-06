@@ -2,7 +2,12 @@ import SwiftUI
 
 struct HistoryView: View {
     @EnvironmentObject var locationStore: LocationStore
-    @State private var viewMode: ViewMode = .list
+    @State private var viewMode: ViewMode = {
+#if DEBUG
+        if ProcessInfo.processInfo.environment["FLETCHER_HISTORY_MODE"] == "map" { return .map }
+#endif
+        return .list
+    }()
     @State private var showSyncStatus = false
     @State private var serverStatus: ServerStatus = .checking
     @State private var unsyncedCount: Int = 0

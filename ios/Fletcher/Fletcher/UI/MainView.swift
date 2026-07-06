@@ -4,7 +4,14 @@ import MapKit
 struct MainView: View {
     @EnvironmentObject var locationService: BackgroundLocationService
     
-    @State private var selection = 0
+    @State private var selection: Int = {
+#if DEBUG
+        if let tab = ProcessInfo.processInfo.environment["FLETCHER_START_TAB"], let index = Int(tab) {
+            return index
+        }
+#endif
+        return 0
+    }()
     
     var body: some View {
         // Main Content (Map/Tabs)

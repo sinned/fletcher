@@ -1,54 +1,37 @@
 # AGENTS.md - AI Assistant Guide for Fletcher
 
-**Last Updated:** 2025-12-24
+**Last Updated:** 2026-07-03
 **Repository:** Fletcher - Privacy-first location tracking app with MCP integration
-**Version:** iOS v1.5.1 | Server v1.3.0
 
----
-
-## Table of Contents
-
-1. [Project Overview](#project-overview)
-2. [Architecture](#architecture)
-3. [Technology Stack](#technology-stack)
-4. [Directory Structure](#directory-structure)
-5. [Development Workflows](#development-workflows)
-6. [Code Conventions](#code-conventions)
-7. [Key Patterns & Practices](#key-patterns--practices)
-8. [Common Tasks](#common-tasks)
-9. [Testing](#testing)
-10. [Deployment](#deployment)
-11. [Important Constraints](#important-constraints)
-12. [Troubleshooting](#troubleshooting)
+Version sources of truth (do not trust docs for versions):
+- iOS: `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `ios/Fletcher/Fletcher.xcodeproj/project.pbxproj`
+- Server: `version` in `server/package.json`
 
 ---
 
 ## Project Overview
 
-Fletcher is a **privacy-first location tracking system** that enables AI assistants to provide location-aware assistance through the Model Context Protocol (MCP). The system consists of:
+Fletcher is a **privacy-first location tracking system** that enables AI assistants to provide location-aware assistance through the Model Context Protocol (MCP):
 
 - **iOS Client**: Native SwiftUI app for background location tracking and data visualization
 - **Backend Server**: Node.js/Fastify server with PostgreSQL/PostGIS for geospatial storage and MCP integration
-- **MCP Integration**: Server-Sent Events (SSE) protocol for real-time AI assistant access
+- **MCP Integration**: Server-Sent Events (SSE) transport for AI assistant access
 
 ### Core Principles
 
 1. **Privacy First**: User data is isolated, access is logged, deletion is immediate
 2. **Transparency**: All AI assistant requests are logged and visible to users
 3. **Simplicity**: MVP-focused, defer complexity, clear separation of concerns
-4. **Security by Default**: API keys, token validation, rate limiting, encrypted storage
+4. **Security by Default**: API keys, token validation, encrypted storage
 
 ---
 
 ## Architecture
 
-### High-Level System Design
-
 ```
 ┌─────────────┐         ┌──────────────────┐         ┌─────────────┐
 │   iOS App   │────────▶│  Fletcher Server │◀────────│ AI Assistant│
-│             │  HTTPS  │                  │   MCP   │             │
-│  (Client)   │         │  REST + MCP/SSE  │  (SSE)  │             │
+│  (Client)   │  HTTPS  │  REST + MCP/SSE  │   SSE   │             │
 └─────────────┘         └──────────────────┘         └─────────────┘
                                  │
                                  ▼
@@ -58,58 +41,25 @@ Fletcher is a **privacy-first location tracking system** that enables AI assista
                         └─────────────────┘
 ```
 
-### iOS Architecture (MVVM)
+### iOS (MVVM with singleton services)
 
-- **View**: SwiftUI declarative UI components
-- **ViewModel**: State management using `@StateObject`, `@EnvironmentObject`
-- **Model**: Data structures (`LocationPoint`, `MCPToken`, `MCPRequest`)
-- **Services**: Singleton managers (`BackgroundLocationService`, `LocationStore`, `APIClient`)
+- **Views**: SwiftUI, in `UI/`; `MainView.swift` owns tab navigation
+- **Services**: singletons — `LocationStore.shared` (local JSON persistence), `APIClient.shared` (HTTP + sync), `BackgroundLocationService` (CoreLocation)
+- **Models**: `LocationPoint`, `MCPToken`, `MCPRequest`
+- Tracking uses **significant-location-change + visit monitoring** (battery-optimized), not continuous updates
 
-### Server Architecture (Modular)
+### Server (modular Fastify plugins)
 
-- **Routes**: HTTP endpoint handlers (`mobile.ts`, `mcp_api.ts`, `access_logs.ts`)
-- **Models**: Database access layer (`user.ts`, `location.ts`, `auth.ts`, `access_log.ts`)
-- **MCP**: Isolated MCP server implementation (`mcp/index.ts`)
-- **Database**: PostgreSQL with PostGIS extension
+- `routes/` — HTTP endpoint handlers; each plugin carries its own auth hook (Fastify hooks are encapsulated per plugin)
+- `models/` — data access layer; routes should not query the DB directly (one exception currently in `mobile.ts` GET /locations)
+- `mcp/index.ts` — MCP server; a new `McpServer` instance is created per SSE connection, sessions tracked in an in-memory `Map` keyed by sessionId
+- `cron.ts` — daily retention cleanup + expired-token cleanup (in-process `setInterval`, not a system cron)
+- `db/index.ts` — pg `Pool`; `initDb()` re-applies `schema.sql` on every boot (idempotent `IF NOT EXISTS` DDL)
 
----
+### Authentication (two tiers, both generated in `utils/crypto.ts`)
 
-## Technology Stack
-
-### iOS Application
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Language | Swift 5+ | Native iOS development |
-| UI Framework | SwiftUI | Declarative UI |
-| Location | CoreLocation | Background tracking |
-| Networking | URLSession | HTTP client (async/await) |
-| Storage | FileManager + JSON | Local location cache |
-| Secure Storage | Keychain | API key storage |
-| Maps | MapKit | Interactive map visualization |
-| Testing | XCTest | Unit tests |
-
-### Backend Server
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Runtime | Node.js 20+ | JavaScript runtime |
-| Language | TypeScript 5.3+ | Type-safe development |
-| Framework | Fastify 5.6.2 | High-performance HTTP server |
-| Database | PostgreSQL 15+ | Relational database |
-| Geospatial | PostGIS 3.4+ | Geographic queries |
-| Validation | Zod 4.1+ | Schema validation |
-| MCP | @modelcontextprotocol/sdk 1.24.3 | MCP protocol implementation |
-
-### Additional Libraries
-
-**Server:**
-- `@fastify/cors`: CORS support
-- `@fastify/rate-limit`: Rate limiting
-- `@fastify/static`: Static file serving
-- `fastify-request-id`: Request tracking
-- `pg`: PostgreSQL client
-- `dotenv`: Environment configuration
+1. **Device API keys** (`fletch_sk_<base64url>`): SHA-256 **hashed** in `users.api_key`. Returned in plaintext exactly once at `POST /api/register`. iOS stores it in Keychain; on 401 it deletes the key and auto-re-registers.
+2. **MCP tokens** (`mcp_<base64url>`): stored **in plaintext** in `assistant_connections.mcp_token` (known gap — see review artifacts). Expiry is **1 year** in code (`models/auth.ts`), despite older docs saying 90 days. Validated on **every** MCP request (connection, message, and inside each tool/resource handler); revocation takes effect mid-session. Every access is logged to `access_logs` — the app polls this for the user-facing request history. This transparency is a core product feature, not incidental.
 
 ---
 
@@ -117,799 +67,201 @@ Fletcher is a **privacy-first location tracking system** that enables AI assista
 
 ```
 fletcher/
-├── ios/Fletcher/Fletcher/           # iOS Application
-│   ├── FletcherApp.swift           # App entry point
-│   ├── Models/                     # Data models
-│   │   ├── LocationPoint.swift     # Core location data
-│   │   ├── MCPToken.swift          # MCP token metadata
-│   │   └── MCPRequest.swift        # MCP request history
-│   ├── Services/
-│   │   └── APIClient.swift         # HTTP client (434 lines)
-│   ├── Location/
-│   │   └── BackgroundLocationService.swift  # Location tracking
-│   ├── Storage/
-│   │   └── LocationStore.swift     # Local JSON persistence
-│   ├── UI/                         # SwiftUI views
-│   │   ├── MainView.swift          # Tab navigation
-│   │   ├── MapView.swift           # Interactive map
-│   │   ├── MCPConnectionView.swift # Token management
-│   │   ├── MCPRequestHistoryView.swift  # Request logs
-│   │   ├── MCPRequestDetailView.swift   # Request details
-│   │   ├── HistoryView.swift       # Location history list
-│   │   ├── HistoryMapView.swift    # History map visualization
-│   │   ├── SettingsView.swift      # App settings
-│   │   ├── SyncStatusView.swift    # Sync diagnostics
-│   │   └── SplashScreen.swift      # Launch screen
-│   ├── Utilities/
-│   │   ├── KeychainManager.swift   # Secure storage
-│   │   ├── AppConstants.swift      # Configuration
-│   │   ├── Bundle+Version.swift    # Version info
-│   │   └── ISO8601DateFormatter+Fletcher.swift
-│   ├── Assets.xcassets/            # App icons & colors
-│   └── Info.plist                  # App configuration
+├── ios/Fletcher/
+│   ├── Fletcher/
+│   │   ├── FletcherApp.swift
+│   │   ├── Models/          LocationPoint, MCPToken, MCPRequest
+│   │   ├── Services/        APIClient.swift
+│   │   ├── Location/        BackgroundLocationService.swift
+│   │   ├── Storage/         LocationStore.swift
+│   │   ├── UI/              MainView, HistoryView, HistoryMapView, MCPConnectionView,
+│   │   │                    MCPRequestHistoryView, MCPRequestDetailView, SettingsView,
+│   │   │                    SyncStatusView, SplashScreen
+│   │   ├── Utilities/       KeychainManager, AppConstants, Bundle+Version,
+│   │   │                    ISO8601DateFormatter+Fletcher
+│   │   └── Info.plist
+│   └── FletcherTests/       LocationStoreTests.swift (only test suite)
 │
-├── server/                          # Backend Server
+├── server/
 │   ├── src/
-│   │   ├── index.ts                # Main server entry (167 lines)
-│   │   ├── cron.ts                 # Cleanup jobs
-│   │   ├── db/
-│   │   │   ├── index.ts            # PostgreSQL connection
-│   │   │   └── schema.sql          # Database schema
-│   │   ├── models/                 # Data access layer
-│   │   │   ├── user.ts             # User management
-│   │   │   ├── location.ts         # Location queries
-│   │   │   ├── auth.ts             # Token validation
-│   │   │   └── access_log.ts       # Access logging
-│   │   ├── routes/                 # HTTP endpoints
-│   │   │   ├── mobile.ts           # Mobile app API
-│   │   │   ├── mcp_api.ts          # MCP token management
-│   │   │   ├── access_logs.ts      # Access log API
-│   │   │   └── locations.ts        # Location endpoints
-│   │   ├── mcp/
-│   │   │   └── index.ts            # MCP server (386 lines)
-│   │   ├── utils/
-│   │   │   └── crypto.ts           # Token generation
-│   │   └── types/
-│   │       └── fastify-request-id.d.ts
-│   ├── public/                     # Static files
-│   │   ├── index.html              # Landing page
-│   │   ├── privacy.html            # Privacy policy
-│   │   ├── terms.html              # Terms of service
-│   │   └── css/                    # Styling
-│   ├── package.json                # Dependencies
-│   ├── tsconfig.json               # TypeScript config
-│   └── .env.example                # Environment template
+│   │   ├── index.ts         Server entry: CORS, static, route registration, /health, /status/
+│   │   ├── cron.ts          Retention + token cleanup jobs
+│   │   ├── db/              index.ts (pool), schema.sql
+│   │   ├── models/          user.ts, location.ts, auth.ts, access_log.ts
+│   │   ├── routes/          mobile.ts, mcp_api.ts, access_logs.ts,
+│   │   │                    locations.ts (UNREGISTERED dead code — do not register; it has no auth)
+│   │   ├── mcp/index.ts     MCP server (SSE at /sse, messages at /messages)
+│   │   └── utils/crypto.ts  Key/token generation + hashing
+│   ├── public/              Landing page, privacy.html, terms.html
+│   └── (root)               Assorted debug/verify scripts (debug_token.ts, verify_*.sh, ...) — dev-only
 │
-├── artifacts/                       # Documentation
-│   ├── changelog.md                # Version history (CRITICAL!)
-│   ├── prd-fletcher-ios-app.md     # Product requirements
-│   ├── tdd-fletcher-ios-app.md     # iOS technical design
-│   ├── tdd-fletcher-server.md      # Server technical design
-│   ├── Fletcher_MVP_Scope.md       # MVP scope
-│   └── walkthrough_server_v2.md    # Server walkthrough
-│
-├── .agent/workflows/                # Agent workflows
-│   ├── bump_version.md             # Version bump protocol
-│   └── update_and_push.md          # Git commit protocol
-│
-├── README.md                        # Project overview
-├── DEPLOYMENT.md                    # Deployment guide
-└── AGENTS.md                        # This file
+├── artifacts/               PRD, TDDs, walkthroughs, code review reports
+├── .agent/workflows/        bump_version.md, update_and_push.md
+├── CHANGELOG.md             ← canonical changelog (root). artifacts/changelog.md is a stale duplicate.
+├── README.md, DEPLOYMENT.md, CLAUDE.md
 ```
 
 ---
 
 ## Development Workflows
 
+### Build & Run
+
+**Server** (in `server/`): `npm install`, `npm run dev` (nodemon), `npm run build` (tsc + copies schema.sql to dist/db/), `npm start`. **There are no automated server tests** — `npm test` is a stub. Verify manually (`curl localhost:3000/health`).
+
+**iOS**: open `ios/Fletcher/Fletcher.xcodeproj`. Test location features on a **real device** — Simulator handles "Always" authorization and background updates poorly.
+
+```bash
+xcodebuild test -scheme Fletcher -destination 'platform=iOS Simulator,name=iPhone 16'
+```
+
+**Database**: `createdb fletcher && psql fletcher -c "CREATE EXTENSION postgis;" && psql fletcher < server/src/db/schema.sql`
+
 ### Git Commit Convention
 
-Fletcher uses **Conventional Commits** format:
+Conventional Commits: types `feat|fix|docs|chore|refactor|config`, scopes `ios|server|mcp|security|ui`.
 
 ```
-<type>(<scope>): <description>
-
-Examples:
-- feat(ios): add tappable detail view for MCP requests
-- fix(security): validate MCP token on every request
-- docs: update TDDs and PRD for MCP request history feature
-- chore: bump version to v1.5.1
-- refactor(ios): move Request History to Assistants tab
+feat(ios): add tappable detail view for MCP requests
+fix(security): validate MCP token on every request
+chore: bump version to v1.6.3
 ```
-
-**Types:**
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `chore`: Maintenance tasks
-- `refactor`: Code restructuring
-- `config`: Configuration changes
-
-**Scopes:**
-- `ios`: iOS app changes
-- `server`: Backend server changes
-- `mcp`: MCP-related changes
-- `security`: Security improvements
-- `ui`: UI/UX changes
 
 ### Branch Naming
 
-When working on features or fixes, use branches starting with `claude/`:
+Branches MUST start with `claude/` and end with the matching session ID (`claude/<description>-<sessionId>`), otherwise push fails with 403. This applies to all AI coding assistants regardless of platform.
 
-```
-claude/add-feature-name-<sessionId>
-claude/fix-bug-description-<sessionId>
-```
+### Version Bumping (`.agent/workflows/bump_version.md`)
 
-**CRITICAL:** The branch MUST start with `claude/` and end with the matching session ID, otherwise push will fail with 403.
+1. iOS: update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `project.pbxproj` (both build configs). Server: `package.json`.
+2. Add a section to the root `CHANGELOG.md`, moving Unreleased items under it.
+3. Verify: Splash screen and Settings footer show the new version.
+4. `git commit -m "chore: bump version to vX.Y.Z"`
 
-**Note:** This naming convention applies to all AI coding assistants working in this repository, regardless of the assistant platform or tool being used.
+### Before Every Push (`.agent/workflows/update_and_push.md`)
 
-### Version Bumping
-
-Follow the protocol in `.agent/workflows/bump_version.md`:
-
-1. **Determine New Version**: Use semantic versioning (e.g., `v1.5.1` → `v1.5.2`)
-2. **Update Source Code**:
-   - iOS: `ios/Fletcher/Fletcher/Info.plist` → Update `CFBundleShortVersionString` and `CFBundleVersion`
-   - Server: `server/package.json` → Update `version` field
-3. **Update Documentation**:
-   - **CRITICAL**: `artifacts/changelog.md` → Create new section, move Unreleased items
-4. **Verification**:
-   - Run app, check Splash Screen shows new version
-   - Check Settings footer shows new version
-5. **Commit**: `git commit -m "chore: bump version to vX.Y.Z"`
-
-### Update and Push Protocol
-
-**ALWAYS** follow this checklist from `.agent/workflows/update_and_push.md`:
-
-1. **Documentation Review** (CRITICAL):
-   - ✅ **Update `artifacts/changelog.md`** with your changes (include timestamp!)
-   - ✅ Update `README.md` if new features were added
-   - ✅ Update walkthrough docs if visual changes occurred
-
-2. **Code Check**:
-   - ✅ Remove temporary debug `print()` statements
-   - ✅ Verify build passes
-
-3. **Git Operations**:
-   - ✅ `git add .`
-   - ✅ `git commit -m "type(scope): description"`
-   - ✅ `git push -u origin <branch-name>`
-
-> **IMPORTANT:** Never skip the Changelog update. Users rely on it to know what changed.
-
-### Git Push Retry Logic
-
-**For git push:**
-- Always use: `git push -u origin <branch-name>`
-- CRITICAL: Branch must start with `claude/` and end with session ID
-- If push fails due to network errors, retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s)
-
-**For git fetch/pull:**
-- Prefer: `git fetch origin <branch-name>`
-- If network failures occur, retry up to 4 times with exponential backoff
-- For pulls: `git pull origin <branch-name>`
+1. Update root `CHANGELOG.md` with a timestamp — never skip this
+2. Remove temporary debug `print()` statements; verify the build passes
+3. `git add . && git commit && git push -u origin <branch>` (retry network failures with backoff)
 
 ---
 
-## Code Conventions
+## Key Behaviors & Constants (verified against code)
 
-### Swift (iOS)
+**iOS (`AppConstants.swift` and call sites):**
+- Sync batch size: **100** (matches server max); sync timer: **300s**; default retention: 30 days
+- Local persistence: single `locations.json` in Documents, written with `.completeFileProtectionUntilFirstUserAuthentication` (works when device is locked after first unlock)
+- Keychain items use `kSecAttrAccessibleAfterFirstUnlock` so background sync can read the API key
+- Local retention cleanup runs on load/add via `LocationStore.cleanup()`, driven by `@AppStorage("retentionDays")`; `-1` = keep forever
+- Sync loop: `getUnsynced()` → POST batches of 100 → `markSynced()`; stops on first error. On 401: delete key, re-register, throw
+- Re-registration on 409 generates a **new user UUID** — server-side data under the old ID becomes orphaned (known gap)
 
-**File Organization:**
-```swift
-// 1. Imports
-import SwiftUI
-import CoreLocation
-
-// 2. Main struct/class
-struct LocationPoint: Codable, Identifiable {
-    // 3. Properties
-    let id: UUID
-    let latitude: Double
-
-    // 4. Methods
-    func distance(to other: LocationPoint) -> Double {
-        // Implementation
-    }
-}
-```
-
-**Naming Conventions:**
-- **Types**: `PascalCase` (e.g., `LocationPoint`, `APIClient`)
-- **Variables/Functions**: `camelCase` (e.g., `syncLocations`, `retentionDays`)
-- **Constants**: `camelCase` (e.g., `defaultRetentionDays`)
-- **Enums**: `PascalCase` with `camelCase` cases
-
-**State Management:**
-- Use `@StateObject` for owned state (created in view)
-- Use `@EnvironmentObject` for shared state (injected from parent)
-- Use `@Published` in ObservableObjects for reactive properties
-- Use `@AppStorage` for UserDefaults persistence
-
-**Async/Await:**
-- Prefer `async/await` over completion handlers
-- Use `Task {}` for async work in SwiftUI views
-- Handle errors with `do-catch` blocks
-
-**Example:**
-```swift
-Task {
-    do {
-        try await apiClient.syncLocations()
-    } catch {
-        print("Sync failed: \(error)")
-    }
-}
-```
-
-### TypeScript (Server)
-
-**File Organization:**
-```typescript
-// 1. Imports
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
-
-// 2. Type definitions
-interface LocationData {
-    latitude: number;
-    longitude: number;
-}
-
-// 3. Validation schemas
-const locationSchema = z.object({
-    latitude: z.number(),
-    longitude: z.number(),
-});
-
-// 4. Route handlers
-export default async function routes(fastify: FastifyInstance) {
-    // Implementation
-}
-```
-
-**Naming Conventions:**
-- **Files**: `snake_case.ts` (e.g., `mcp_api.ts`, `access_log.ts`)
-- **Types/Interfaces**: `PascalCase` (e.g., `LocationData`, `UserInfo`)
-- **Variables/Functions**: `camelCase` (e.g., `getUserById`, `mcpToken`)
-- **Constants**: `UPPER_SNAKE_CASE` (e.g., `MAX_BATCH_SIZE`)
-
-**Error Handling:**
-- Use Zod for input validation
-- Return appropriate HTTP status codes (400, 401, 404, 500)
-- Log errors with request context
-- Provide helpful error messages
-
-**Database Queries:**
-- Use parameterized queries (prevent SQL injection)
-- Handle connection errors gracefully
-- Use transactions for multi-step operations
-- Always close connections
+**Server:**
+- `POST /api/locations` accepts max **100** points per request (Zod `.max(100)`); batch INSERT in a transaction
+- `GET /api/locations` limit 1–10000, `before` cursor pagination
+- MCP `get_location_history` limit capped at 1000; access-log queries capped at 500
+- MCP token expiry: **1 year**; expired tokens hard-deleted by cron; revoked rows deleted 30 days after revocation
+- Rate limiting exists **only** on `/api/mcp/*` (10 req / 15 min / IP). No global limiter (docs previously claiming 100/min were wrong)
+- Retention cleanup: daily `DELETE ... WHERE timestamp < NOW() - retention_days`; `retention_days = -1` means keep forever; `0` is rejected
+- `privacy_settings` JSONB on `users`: `precision_level` (high/medium/low → full/~100m/~1km rounding), `history_access_days`, `enabled`. **Caution:** enforcement of these in the MCP path is currently buggy/incomplete — see `artifacts/code_review_2026-07-03.md` before relying on it
+- `updatePrivacySettings` auto-syncs `history_access_days` when `retention_days` changes
 
 ---
 
-## Key Patterns & Practices
+## API Endpoints (verified)
 
-### iOS Patterns
+**Mobile app API (`/api`, device API key auth):**
+- `POST /api/register` — register device (no auth), returns api_key once; 409 if user_id exists
+- `POST /api/locations` — upload batch
+- `GET /api/locations` — history (`limit`, `before`)
+- `DELETE /api/locations` — delete ALL user locations
+- `DELETE /api/locations/:id` — delete one
+- `GET|PATCH /api/privacy-settings`
 
-**1. Singleton Services**
-```swift
-class LocationStore: ObservableObject {
-    static let shared = LocationStore()
-    @Published var locations: [LocationPoint] = []
+**MCP management (`/api/mcp`, device API key auth, rate-limited):**
+- `POST /api/mcp/generate-token` — body: `assistant_type` (claude|chatgpt|cursor|other), optional `token_name`
+- `GET /api/mcp/tokens` — list (returns `token_preview`, never full token)
+- `DELETE /api/mcp/tokens/:id` — revoke (soft: sets `revoked_at`)
 
-    private init() {
-        loadLocations()
-    }
-}
-```
+**Access logs (`/api/access-logs`, device API key auth):**
+- `GET /` — `limit`, `offset`, `assistant_type`, `start_date`, `end_date`; returns logs + pagination metadata
 
-**2. Keychain Storage**
-```swift
-// ALWAYS use Keychain for API keys, NEVER UserDefaults
-KeychainManager.save(key: "apiKey", value: apiKey)
-let apiKey = KeychainManager.load(key: "apiKey")
-```
+**MCP server (MCP token auth, via `Authorization: Bearer` or `?token=` query param):**
+- `GET /sse` — SSE connection; `POST /messages?sessionId=...` — MCP messages
 
-**3. Background Location Tracking**
-```swift
-locationManager.allowsBackgroundLocationUpdates = true
-locationManager.pausesLocationUpdatesAutomatically = true
-locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
-locationManager.distanceFilter = 100
-```
+**Public:** `GET /health`, `GET /status/` (user/location counts), static landing/privacy/terms pages
 
-**4. Sync Strategy**
-```swift
-// Batch sync to avoid timeouts
-let batchSize = 50
-let unsynced = locations.filter { !$0.synced }
-for batch in unsynced.chunked(into: batchSize) {
-    try await apiClient.uploadLocations(batch)
-    locationStore.markSynced(ids: batch.map { $0.id })
-}
-```
+## MCP Resources & Tools
 
-**5. Error Recovery**
-```swift
-// Auto-register on 401 errors
-if statusCode == 401 {
-    KeychainManager.delete(key: "apiKey")
-    // Trigger re-registration
-}
-```
+Resources (UTC, no timezone param): `fletcher://location/current`, `fletcher://location/history` (≤24h)
 
-### Server Patterns
-
-**1. Authentication Middleware**
-```typescript
-// Validate API key on every request
-const apiKey = request.headers.authorization?.replace('Bearer ', '');
-const user = await validateApiKey(apiKey);
-if (!user) {
-    return reply.code(401).send({ error: 'Invalid API key' });
-}
-```
-
-**2. MCP Token Validation**
-```typescript
-// Validate on EVERY request, not just connection
-const { userId, assistantType } = await validateMCPToken(token);
-// Log every access
-await logAccess(userId, assistantType, endpoint, queryParams);
-```
-
-**3. Batch Operations**
-```typescript
-// Insert locations in batches
-const values = locations.map((loc, i) =>
-    `($${i*4+1}, ST_SetSRID(ST_MakePoint($${i*4+2}, $${i*4+3}), 4326), $${i*4+4})`
-).join(',');
-await query(`INSERT INTO locations (user_id, point, accuracy, timestamp) VALUES ${values}`, params);
-```
-
-**4. Access Logging**
-```typescript
-// Log ALL MCP requests with details
-await query(
-    `INSERT INTO access_logs (user_id, assistant_type, endpoint, location_count, query_params, response_time_ms)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [userId, assistantType, endpoint, count, JSON.stringify(params), responseTime]
-);
-```
-
-**5. Retention Cleanup**
-```typescript
-// Daily cron job
-if (retentionDays === -1) {
-    // Indefinite retention, skip
-} else {
-    await query(
-        `DELETE FROM locations WHERE user_id = $1 AND timestamp < NOW() - INTERVAL '${retentionDays} days'`,
-        [userId]
-    );
-}
-```
-
-### Data Flow Patterns
-
-**1. Location Upload Flow**
-```
-iOS App:
-1. BackgroundLocationService receives CLLocation
-2. Creates LocationPoint with synced=false
-3. LocationStore.addLocation() saves to JSON
-4. Timer triggers APIClient.syncLocations()
-5. Upload batch (max 100 items)
-6. On success, mark synced=true
-
-Server:
-1. Validate API key
-2. Validate schema with Zod
-3. Batch insert to PostgreSQL
-4. Return 200 OK
-```
-
-**2. MCP Connection Flow**
-```
-iOS App:
-1. User taps "Generate Token" in Assistants tab
-2. POST /api/mcp/generate-token with assistant_type
-3. Display token ONCE (never stored on client)
-4. User copies to AI assistant config
-
-AI Assistant:
-1. Connects to /sse with Bearer token
-2. Server validates token on every request
-3. Logs all access to access_logs table
-4. Returns location data per MCP protocol
-
-iOS App:
-1. Polls /api/access-logs to show request history
-2. Displays in MCPRequestHistoryView
-3. Tap for details in MCPRequestDetailView
-```
-
----
-
-## Common Tasks
-
-### Adding a New iOS View
-
-1. Create file in `ios/Fletcher/Fletcher/UI/`
-2. Import SwiftUI and required dependencies
-3. Use `@EnvironmentObject` for shared state
-4. Add to navigation in `MainView.swift` if needed
-5. Test on device (Simulator has limited location features)
-
-### Adding a New Server Endpoint
-
-1. Create schema validation with Zod
-2. Add route handler in `server/src/routes/`
-3. Import in `server/src/index.ts`
-4. Register with `server.register()`
-5. Update TDD documentation
-6. Update changelog
-
-### Adding a New Database Column
-
-1. Update `server/src/db/schema.sql`
-2. Create migration script if data exists
-3. Update TypeScript types
-4. Update model functions
-5. Test locally before deploying
-
-### Debugging Sync Issues
-
-1. Check `SyncStatusView` in iOS app
-2. Review `lastSyncError` message
-3. Check server logs for validation errors
-4. Verify API key in Keychain
-5. Check network connectivity
-6. Try "Resync All Data" if server was wiped
-
-### Debugging MCP Connection
-
-1. Check token expiry in `MCPConnectionView`
-2. Verify token format starts with `mcp_`
-3. Check server logs for validation errors
-4. Test `/sse` endpoint manually with curl
-5. Review `access_logs` table for failed requests
-6. Check AI assistant logs for connection errors
-
----
-
-## Testing
-
-### iOS Testing
-
-**Framework:** XCTest
-
-**Test Files:**
-- `ios/Fletcher/FletcherTests/LocationStoreTests.swift`
-
-**Running Tests:**
-```bash
-# Via Xcode
-xcodebuild test -scheme Fletcher
-
-# Or use Xcode UI: Cmd+U
-```
-
-**Test Coverage:**
-- ✅ Retention cleanup logic
-- ✅ Indefinite retention (-1 days)
-- ✅ Date calculation and filtering
-- ⚠️ Limited coverage (expand recommended)
-
-### Server Testing
-
-**Status:** No automated tests currently
-
-**Manual Testing:**
-```bash
-# Health check
-curl http://localhost:3000/health
-
-# Register device
-curl -X POST http://localhost:3000/api/register \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "test-uuid"}'
-
-# Upload location
-curl -X POST http://localhost:3000/api/locations \
-  -H "Authorization: Bearer fletch_sk_..." \
-  -H "Content-Type: application/json" \
-  -d '{"locations": [...]}'
-```
-
-**Test Scripts:**
-- `server/debug_token.ts` - Token debugging
-- `server/test_models.ts` - Model testing
-- `server/migrate_types.ts` - Migration utilities
-
----
-
-## Deployment
-
-### Server Deployment (Render.com)
-
-See `DEPLOYMENT.md` for full details.
-
-**Quick Steps:**
-
-1. **Push to GitHub**
-   ```bash
-   git push origin main
-   ```
-
-2. **Create Web Service on Render**
-   - Name: `fletcher-server`
-   - Root Directory: `server`
-   - Environment: Node
-   - Build Command: `npm install && npm run build`
-   - Start Command: `npm start`
-
-3. **Create PostgreSQL Database**
-   - Name: `fletcher-db`
-   - Region: Same as web service
-   - Copy Internal Database URL
-
-4. **Configure Environment Variables**
-   ```
-   DATABASE_URL=postgres://...
-   API_SECRET_KEY=<random-string>
-   NODE_ENV=production
-   PORT=3000
-   ```
-
-5. **Initialize Database**
-   ```bash
-   psql "EXTERNAL_URL" -f src/db/schema.sql
-   ```
-
-6. **Verify Deployment**
-   ```bash
-   curl https://<your-app>.onrender.com/health
-   # Should return: {"status":"ok"}
-   ```
-
-7. **Update iOS App**
-   - Settings → Advanced → Server URL
-   - Enter: `https://<your-app>.onrender.com`
-
-### iOS Deployment (App Store)
-
-1. **Update Version** (see Version Bumping workflow)
-2. **Archive Build** in Xcode
-3. **Upload to App Store Connect**
-4. **Submit for Review**
+Tools (all take optional `timezone`, IANA name, default `America/Los_Angeles`; timestamps returned in both local and UTC ISO 8601):
+- `get_latest_location(timezone)`
+- `get_location_history(start_date, end_date, timezone, limit, offset, center_lat, center_lon, radius_meters)`
+- `get_recent_trajectory(limit, timezone)`
+- `get_frequent_locations(limit, days, timezone)` — grid-snap clustering (~111m cells)
 
 ---
 
 ## Important Constraints
 
-### What to AVOID
-
 **iOS:**
-- ❌ NEVER store API keys in UserDefaults (use Keychain)
-- ❌ NEVER commit with debug `print()` statements
-- ❌ NEVER skip changelog updates
-- ❌ NEVER test location features only in Simulator (use device)
-- ❌ NEVER force-unwrap optionals (`!`) without good reason
-- ❌ NEVER block the main thread with heavy operations
+- API keys go in Keychain via `KeychainManager` — NEVER UserDefaults
+- No debug `print()` in commits (and never print credentials)
+- Don't block the main thread; prefer async/await over completion handlers
+- File naming/state management: `@StateObject` for owned state, `@EnvironmentObject` for shared, `@AppStorage` for simple prefs
 
 **Server:**
-- ❌ NEVER skip MCP token validation on requests
-- ❌ NEVER expose sensitive data in logs
-- ❌ NEVER use string interpolation in SQL queries (use parameters)
-- ❌ NEVER skip input validation with Zod
-- ❌ NEVER commit `.env` files (use `.env.example`)
-- ❌ NEVER drop tables in production schema
+- Parameterized SQL only — never string interpolation of values
+- Validate every payload with Zod
+- Validate MCP tokens on every request AND log every MCP access (transparency requirement)
+- Never commit `.env`; `server/.env.example` is the template
+- Never register `routes/locations.ts` — it is legacy, unauthenticated code kept only in history; prefer deleting it
+- File naming: `snake_case.ts`; types `PascalCase`; constants `UPPER_SNAKE_CASE`
 
 **Git:**
-- ❌ NEVER push to `main` without PR review
-- ❌ NEVER skip changelog updates before pushing
-- ❌ NEVER use non-descriptive commit messages
-- ❌ NEVER push branches without `claude/` prefix (will fail with 403)
+- Never push to `main` without PR review
+- Never skip the root `CHANGELOG.md` update
 
-### Security Best Practices
+## Environment Variables (server `.env`)
 
-**Authentication:**
-- API keys: `fletch_sk_<random>` format (hashed in DB)
-- MCP tokens: `mcp_<random>` format (expires in 90 days)
-- All tokens generated with crypto.randomBytes(32)
+```bash
+PORT=3000
+DATABASE_URL=postgres://user:password@localhost:5432/fletcher
+NODE_ENV=development
+BASE_URL=http://localhost:3000        # used in generate-token instructions
+CORS_ORIGIN=http://localhost:3000     # default reflects any origin if unset
+LOG_LEVEL=info
+```
 
-**Rate Limiting:**
-- Enabled on all routes
-- Default: 100 requests per minute per IP
+Note: `API_SECRET_KEY` appears in `.env.example` and older docs but is **not read anywhere in the code**.
 
-**CORS:**
-- Configured via `CORS_ORIGIN` environment variable
-- Default: Allow all origins in development
+---
 
-**Data Minimization:**
-- Only store: latitude, longitude, accuracy, timestamp
-- No PII collected (no names, emails, phone numbers)
+## Deployment
 
-**Transport Security:**
-- HTTPS enforced in production
-- `NSAllowsArbitraryLoads` only for local development
+Server deploys to Render.com (see `DEPLOYMENT.md`): root directory `server`, build `npm install && npm run build`, start `npm start`, plus a Render PostgreSQL instance with PostGIS. Initialize with `psql "EXTERNAL_URL" -f src/db/schema.sql`, verify `GET /health`. Default production URL baked into the iOS app: `https://fletcher-server.onrender.com` (user-overridable in Settings → Server URL).
+
+iOS ships via Xcode Archive → App Store Connect.
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
-**iOS: "Sync Failed: Invalid API Key"**
-- Solution: App will auto-register on next launch
-- Check: Keychain contains valid `apiKey`
-- Verify: Server URL is correct
-
-**iOS: "No Location Updates"**
-- Solution: Check location permissions (Settings → Privacy → Location)
-- Verify: Background Location is enabled
-- Check: Device has good GPS signal (not indoors)
-
-**Server: "Database connection failed"**
-- Solution: Verify `DATABASE_URL` in `.env`
-- Check: PostgreSQL service is running
-- Verify: PostGIS extension is enabled
-
-**Server: "MCP connection timeout"**
-- Solution: Check token validity (not expired/revoked)
-- Verify: SSE endpoint is accessible
-- Check: CORS configuration
-
-**Build: "Multiple commands produce Info.plist"**
-- Solution: Check Xcode build settings
-- Verify: Only one `Info.plist` target membership
-
-### Debugging Tools
-
-**iOS:**
-- Xcode Console: View `print()` statements
-- Instruments: Profile performance and memory
-- Network Link Conditioner: Test offline behavior
-- Xcode Debugger: Breakpoints and variable inspection
-
-**Server:**
-- Fastify Logger: Set `LOG_LEVEL=debug` in `.env`
-- PostgreSQL Logs: Check database logs for query errors
-- curl: Test endpoints manually
-- Render Logs: View production logs in dashboard
-
-### Log Locations
-
-**iOS:**
-- Xcode Console (Cmd+Shift+C)
-- Device Console (via Devices & Simulators)
-
-**Server:**
-- Development: stdout (terminal)
-- Production: Render logs dashboard
-- Database: PostgreSQL logs
+- **"Sync Failed: Invalid API Key"** — app auto-recovers: deletes Keychain key, re-registers. Note this creates a new user_id if the old one 409s.
+- **No location updates** — check Always permission, background modes, and that tracking uses significant-change monitoring (updates are sparse by design, ~500m granularity).
+- **MCP connection fails** — check token not expired/revoked (`assistant_connections`), test `/sse` with curl, inspect `access_logs`. Server logs `[MCP]`/`[Auth]` lines for validation failures.
+- **DB errors on boot** — `DATABASE_URL` correct, PostgreSQL running, PostGIS extension installed. Boot exits(1) if init fails.
+- **Server logs**: dev = stdout (`LOG_LEVEL=debug` for verbose); prod = Render dashboard.
 
 ---
 
-## Quick Reference
+## Documentation Map
 
-### Key Files
+- Root `CHANGELOG.md` — canonical version history (**always update**)
+- `CLAUDE.md` — condensed guide for Claude Code
+- `artifacts/tdd-fletcher-ios-app.md`, `artifacts/tdd-fletcher-server.md`, `artifacts/prd-fletcher-ios-app.md` — design docs
+- `artifacts/code_review_2026-02-22.md`, `artifacts/code_review_2026-07-03.md` — open review findings; check before "fixing" something already catalogued
+- `.agent/workflows/` — version bump and push protocols
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `ios/Fletcher/Fletcher/Services/APIClient.swift` | HTTP client | 434 |
-| `server/src/mcp/index.ts` | MCP server | 386 |
-| `server/src/routes/mobile.ts` | Mobile API | 190 |
-| `server/src/index.ts` | Server entry | 167 |
-| `ios/Fletcher/Fletcher/UI/MCPConnectionView.swift` | Token management | 232 |
-| `server/src/models/location.ts` | Location queries | 215 |
-
-### Key Constants
-
-**iOS (`AppConstants.swift`):**
-- `Sync.batchSize`: 50 locations
-- `Sync.timerInterval`: 300 seconds (5 minutes)
-- `defaultRetentionDays`: 30 days
-
-**Server:**
-- `MAX_BATCH_SIZE`: 100 locations
-- `MAX_LOCATIONS_LIMIT`: 10,000 locations
-- `MCP_TOKEN_EXPIRY`: 90 days
-- `TOKEN_CLEANUP_DAYS`: 30 days (soft delete)
-
-### Environment Variables
-
-**Server `.env`:**
-```bash
-PORT=3000
-DATABASE_URL=postgres://user:password@localhost:5432/fletcher
-API_SECRET_KEY=your-secret-key-here
-NODE_ENV=development
-BASE_URL=http://localhost:3000
-CORS_ORIGIN=http://localhost:3000
-LOG_LEVEL=info
-```
-
-### API Endpoints Summary
-
-**Mobile App API:**
-- `POST /api/register` - Register device
-- `POST /api/locations` - Upload locations
-- `GET /api/locations` - Fetch history
-- `GET /api/privacy-settings` - Get settings
-- `PATCH /api/privacy-settings` - Update settings
-- `DELETE /api/locations/:id` - Delete location
-
-**MCP Management API:**
-- `POST /api/mcp/generate-token` - Generate MCP token
-- `GET /api/mcp/tokens` - List tokens
-- `DELETE /api/mcp/tokens/:id` - Revoke token
-- `GET /api/access-logs` - Get request history
-
-**MCP Server:**
-- `GET /sse` - SSE connection
-- `POST /messages` - MCP messages
-
-**Health & Status:**
-- `GET /health` - Health check
-- `GET /status/` - Statistics
-
-### MCP Resources & Tools
-
-**Resources:**
-- `fletcher://location/current` - Current location GeoJSON
-- `fletcher://location/history` - 24h history FeatureCollection
-
-**Tools:**
-- `get_latest_location()` - Latest synced position
-- `get_location_history(start_date, end_date, limit, offset, center_lat, center_lon, radius_meters)` - Advanced queries
-- `get_recent_trajectory(limit)` - Movement path
-- `get_frequent_locations(limit, days)` - Visit clusters
-
----
-
-## Documentation References
-
-**Primary Docs:**
-- `README.md` - Project overview
-- `DEPLOYMENT.md` - Deployment guide
-- `artifacts/changelog.md` - **CRITICAL** - Version history
-- `artifacts/tdd-fletcher-ios-app.md` - iOS technical design
-- `artifacts/tdd-fletcher-server.md` - Server technical design
-- `artifacts/prd-fletcher-ios-app.md` - Product requirements
-
-**Workflows:**
-- `.agent/workflows/bump_version.md` - Version protocol
-- `.agent/workflows/update_and_push.md` - Git commit protocol
-
-**Schema:**
-- `server/src/db/schema.sql` - Database schema
-
----
-
-## Final Notes for AI Assistants
-
-1. **Always update `artifacts/changelog.md`** - This is the most important file to keep current
-2. **Follow Conventional Commits** - Makes git history readable
-3. **Test on real devices** - Simulator has limited location capabilities
-4. **Never skip security** - API keys in Keychain, tokens validated, SQL parameterized
-5. **Log all MCP requests** - Transparency is a core feature
-6. **Use branches with `claude/` prefix** - Required for push to succeed (applies to all AI assistants)
-7. **Read TDD docs before major changes** - Understand architectural patterns
-8. **Check existing patterns** - Don't reinvent, follow established conventions
-9. **Document as you go** - Update relevant docs when making changes
-10. **Ask before breaking changes** - Discuss architecture changes with user
-
----
-
-**Remember:** Fletcher is about privacy and transparency. Every decision should align with these core values.
-
-**Questions?** Check the TDD documents in `artifacts/` or ask the user for clarification.
-
----
-
-*This document is maintained by AI assistants working on the Fletcher project. Keep it updated as the codebase evolves.*
+**Remember:** Fletcher is about privacy and transparency. Every decision should align with these core values. When docs and code disagree, the code is the source of truth — and update the docs.
