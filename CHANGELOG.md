@@ -1,7 +1,26 @@
 # Changelog
 
 ## [Unreleased]
+
+## [1.6.6] - 2026-07-05
 ### Changed
+- **Platform**: App Store target is now iPhone-only (`TARGETED_DEVICE_FAMILY = 1`); the iPad split-view layout was not presentable and iPad support will return once the UI is adapted (2026-07-05)
+
+### Added
+- **Dev**: DEBUG-only screenshot hooks — env vars `FLETCHER_DEMO_DATA`, `FLETCHER_START_TAB`, `FLETCHER_HISTORY_MODE`, `FLETCHER_MAP_FIT` seed demo history and preselect tabs for simulator screenshot automation; compiled out of Release (2026-07-05)
+
+## [1.6.5] - 2026-07-03
+### Fixed
+- **History Map**: Fixed multi-second hang when opening the Map view with large histories (6k+ points). Points are now thinned to at most one per visible-region grid cell (recomputed when the camera settles) instead of rendering one annotation view per raw point; Start/End markers now picked by timestamp instead of array position, which flipped depending on sync order (2026-07-03)
+
+## [1.6.4] - 2026-07-03
+### Added
+- **Docs**: Added `artifacts/code_review_2026-07-03.md` — full-stack correctness/security review; key findings: MCP server ignores privacy settings (flattened-object bug), plaintext MCP tokens, unregistered-but-unauthenticated `routes/locations.ts`, iOS LocationStore data race, sync duplication (2026-07-03)
+
+### Changed
+- **Version**: Bumped iOS version to 1.6.4 (build 5) to verify the local build-and-install pipeline (2026-07-03)
+- **Docs**: Refreshed AGENTS.md against the actual code — corrected token expiry (1 year), rate-limit scope (/api/mcp only), sync batch size (100), removed nonexistent files/claims, documented verified endpoints and constants (2026-07-03)
+- **Docs**: Rewrote CLAUDE.md — corrected stale version pins, changelog location, iOS version source (project.pbxproj), and added auth/data-flow architecture notes and test commands (2026-07-03)
 - **Docs**: Renamed CLAUDE.md to AGENTS.md and generalized for all AI coding assistants (2025-12-24 01:23)
 
 ## [1.6.3] - 2026-02-21
