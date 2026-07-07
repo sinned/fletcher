@@ -10,7 +10,7 @@ import { logMCPRequest } from '../models/access_log';
 // Store sessions with their tokens for validation
 const sessions = new Map<string, { transport: SSEServerTransport, token: string }>();
 
-import { DateTime } from 'luxon';
+import { DateTime, IANAZone } from 'luxon';
 
 // ... (existing imports)
 
@@ -55,18 +55,16 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         const { userId, assistantType } = tokenData;
 
-        // Retrieve privacy settings for this session context
-        const privacy = await getPrivacySettings(userId);
-        // getPrivacySettings() returns a flattened object ({precision_level, ...}),
-        // not the raw users row — reading .privacy_settings here silently ignored
-        // the user's choices and always fell back to the defaults.
-        const precision = privacy?.precision_level || 'medium';
-        const historyDays = privacy?.history_access_days || 7;
+        // Enforce access at connect time: a disabled account shares nothing.
+        const initialSettings = await getPrivacySettings(userId);
+        if (initialSettings?.enabled === false) {
+            return res.code(403).send({ error: 'Location sharing is disabled for this account' });
+        }
 
         // 2. Create Server
         const mcp = new McpServer({
             name: 'Fletcher',
-            version: '2.0.0',
+            version: '2.1.0',
         });
 
         // Hijack Fastify's response handling to allow raw SSE stream
@@ -86,6 +84,20 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 throw new Error('Token has been revoked or is invalid');
             }
             return tokenData;
+        };
+
+        // Fetch privacy settings on every request so tightened precision, a
+        // shortened history window, or a flipped "enabled" switch take effect
+        // mid-session instead of being frozen at connect time.
+        const getLiveSettings = async (): Promise<{ precision: string; historyDays: number }> => {
+            const p = await getPrivacySettings(userId);
+            if (p?.enabled === false) {
+                throw new Error('Location sharing is disabled for this account');
+            }
+            return {
+                precision: (p?.precision_level as string) || 'medium',
+                historyDays: (p?.history_access_days as number) ?? 7,
+            };
         };
 
         // Helper for timezone formatting
@@ -113,6 +125,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
         mcp.resource('current-location', 'fletcher://location/current', async (uri) => {
             // Validate token is still valid
             await validateTokenForRequest();
+            const { precision } = await getLiveSettings();
 
             const startTime = Date.now();
             const loc = await getLatestLocation(userId);
@@ -151,6 +164,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
         mcp.resource('location-history', 'fletcher://location/history', async (uri) => {
             // Validate token is still valid
             await validateTokenForRequest();
+            const { precision, historyDays } = await getLiveSettings();
 
             const startTime = Date.now();
             const end = new Date();
@@ -195,34 +209,44 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             async ({ start_date, end_date, timezone = 'America/Los_Angeles', limit = 100, offset = 0, center_lat, center_lon, radius_meters }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
+                const { precision, historyDays } = await getLiveSettings();
 
                 const startTime = Date.now();
                 let features: any[] = [];
                 let logDetails: any = {};
                 let totalCount = 0;
 
-                // Enforce max limit
+                // Validate timezone before it reaches Luxon/Postgres.
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}. Use an IANA name like America/Los_Angeles.` }] };
+                }
+
+                // Clamp pagination into sane bounds.
                 if (limit > 1000) limit = 1000;
+                if (limit < 1) limit = 1;
+                if (offset < 0) offset = 0;
 
                 let start: Date | undefined;
                 let end: Date | undefined;
 
-                // Convert inputs to UTC based on timezone
-                // If just date "2026-01-04", Luxon treats start of day.
+                // Convert inputs to UTC based on timezone. A bare date ("2026-01-04")
+                // means the whole day, so the end bound snaps to end-of-day.
+                const dateOnly = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
                 if (start_date) {
-                    start = DateTime.fromISO(start_date, { zone: timezone }).toJSDate();
+                    const p = DateTime.fromISO(start_date, { zone: timezone });
+                    if (!p.isValid) return { content: [{ type: "text", text: `Invalid start_date: ${start_date}` }] };
+                    start = p.toJSDate();
                 }
                 if (end_date) {
-                    // Start of day on that date? Or end of day? 
-                    // Usually ranges are inclusive start, exclusive end, or inclusive.
-                    // If user says "2026-01-04", they usually mean that day.
-                    // If it's a full ISO string, use specific time. 
-                    // Let's assume standard ISO behavior.
-                    end = DateTime.fromISO(end_date, { zone: timezone }).toJSDate();
+                    const p = DateTime.fromISO(end_date, { zone: timezone });
+                    if (!p.isValid) return { content: [{ type: "text", text: `Invalid end_date: ${end_date}` }] };
+                    end = (dateOnly(end_date) ? p.endOf('day') : p).toJSDate();
                 }
 
-                // Privacy policy checks can be applied here for start/end if needed
-                // For now, relying on model-level or query-level constraints if any
+                // Enforce the user's history_access_days window: assistants may not
+                // read further back than now - historyDays.
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
+                if (!start || start < cutoff) start = cutoff;
 
                 // Radius filtering or Standard History
                 let history: any[] = [];
@@ -301,6 +325,7 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             async ({ timezone = 'America/Los_Angeles' }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
+                const { precision } = await getLiveSettings();
 
                 const startTime = Date.now();
                 const loc = await getLatestLocation(userId);
@@ -341,6 +366,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             async ({ limit = 10, timezone = 'America/Los_Angeles' }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
+                const { precision } = await getLiveSettings();
+                if (limit > 1000) limit = 1000;
+                if (limit < 1) limit = 1;
 
                 const startTime = Date.now();
                 const history = await getRecentTrajectory(userId, limit);
@@ -388,6 +416,10 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             async ({ limit = 5, days = 30, timezone = 'America/Los_Angeles' }) => {
                 // Validate token is still valid
                 await validateTokenForRequest();
+                const { precision, historyDays } = await getLiveSettings();
+                // The lookback cannot exceed the user's history access window.
+                if (days > historyDays) days = historyDays;
+                if (limit < 1) limit = 1;
 
                 const startTime = Date.now();
                 const clusters = await getFrequentLocations(userId, limit, days);
