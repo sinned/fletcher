@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
-import { getLatestLocation, getLocationHistory, getRecentLocations, getLocationHistoryWithRadius, getFrequentLocations, getRecentTrajectory, getTotalLocationCount } from '../models/location';
+import { getLatestLocation, getLocationHistory, getRecentLocations, getLocationHistoryWithRadius, getFrequentLocations, getRecentTrajectory, getTotalLocationCount, getLocationAtTime, getDistanceSummary, getPlaceVisits } from '../models/location';
 import { validateMCPToken } from '../models/auth';
 import { getPrivacySettings } from '../models/user';
 import { logMCPRequest } from '../models/access_log';
@@ -459,6 +459,137 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                                 timezone,
                                 timezone_offset: currentOffset
                             }
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: Where was I at a given time?
+        mcp.tool('get_location_at_time',
+            {
+                datetime: z.string().describe("Target date-time (ISO 8601, e.g. 2026-01-04T15:00). Interpreted in the specified timezone."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ datetime, timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { precision, historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                const parsed = DateTime.fromISO(datetime, { zone: timezone });
+                if (!parsed.isValid) {
+                    return { content: [{ type: "text", text: `Invalid datetime: ${datetime}.` }] };
+                }
+                const target = parsed.toJSDate();
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
+
+                const startTime = Date.now();
+                const loc = await getLocationAtTime(userId, target, { start: cutoff });
+                await logAccess(userId, assistantType, 'get_location_at_time', loc ? 1 : 0, { datetime, timezone }, startTime);
+                if (!loc) return { content: [{ type: "text", text: "No location found within the accessible history window." }] };
+
+                const [lat, lon] = applyPrecision(loc.latitude, loc.longitude, precision);
+                const timeData = formatWithTimezone(loc.timestamp, timezone);
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            type: "Feature",
+                            geometry: { type: "Point", coordinates: [lon, lat] },
+                            properties: {
+                                accuracy: loc.accuracy,
+                                timestamp: timeData.timestamp,
+                                timestamp_utc: timeData.timestamp_utc,
+                                minutes_from_requested: Math.round(Number(loc.diff_seconds) / 60),
+                                precision_level: precision
+                            },
+                            metadata: { timezone, timezone_offset: timeData.offset }
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: How far did I travel over a period?
+        mcp.tool('get_distance_summary',
+            {
+                start_date: z.string().optional().describe("Start date (ISO 8601). Defaults to the start of the accessible window."),
+                end_date: z.string().optional().describe("End date (ISO 8601). A bare date counts the whole day."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ start_date, end_date, timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                const dateOnly = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
+                let start: Date | undefined;
+                let end: Date | undefined;
+                if (start_date) {
+                    const p = DateTime.fromISO(start_date, { zone: timezone });
+                    if (!p.isValid) return { content: [{ type: "text", text: `Invalid start_date: ${start_date}.` }] };
+                    start = p.toJSDate();
+                }
+                if (end_date) {
+                    const p = DateTime.fromISO(end_date, { zone: timezone });
+                    if (!p.isValid) return { content: [{ type: "text", text: `Invalid end_date: ${end_date}.` }] };
+                    end = (dateOnly(end_date) ? p.endOf('day') : p).toJSDate();
+                }
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
+                if (!start || start < cutoff) start = cutoff;
+
+                const startTime = Date.now();
+                const summary = await getDistanceSummary(userId, { start, end });
+                await logAccess(userId, assistantType, 'get_distance_summary', summary.points, { start, end, timezone }, startTime);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            distance_meters: Math.round(summary.meters),
+                            distance_km: Math.round(summary.meters / 100) / 10,
+                            distance_miles: Math.round(summary.meters / 160.934) / 10,
+                            points: summary.points,
+                            metadata: { start: start?.toISOString(), end: end?.toISOString(), timezone }
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: How often was I near a place?
+        mcp.tool('get_place_visits',
+            {
+                center_lat: z.number().describe("Latitude of the place to check."),
+                center_lon: z.number().describe("Longitude of the place to check."),
+                radius_meters: z.number().optional().default(150).describe("Match radius in meters (default 150)."),
+                days: z.number().optional().default(30).describe("Lookback period in days."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ center_lat, center_lon, radius_meters = 150, days = 30, timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                if (days > historyDays) days = historyDays;
+                if (radius_meters < 1) radius_meters = 1;
+                const start = DateTime.now().minus({ days }).toJSDate();
+
+                const startTime = Date.now();
+                const visits = await getPlaceVisits(userId, center_lat, center_lon, radius_meters, { start });
+                await logAccess(userId, assistantType, 'get_place_visits', visits.visit_count, { center: [center_lat, center_lon], radius_meters, days, timezone }, startTime);
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            visit_count: visits.visit_count,
+                            first_seen: visits.first_seen ? formatWithTimezone(visits.first_seen, timezone).timestamp : null,
+                            last_seen: visits.last_seen ? formatWithTimezone(visits.last_seen, timezone).timestamp : null,
+                            metadata: { center: [center_lat, center_lon], radius_meters, days, timezone }
                         })
                     }]
                 };

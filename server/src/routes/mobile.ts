@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db';
 import { createUser, validateAPIKey, getPrivacySettings, updatePrivacySettings, isPgError } from '../models/user';
-import { saveLocations, deleteLocation, deleteAllLocations } from '../models/location';
+import { saveLocations, deleteLocation, deleteAllLocations, getTotalLocationCount, getLatestLocation, getFrequentLocations, getDistanceSummary } from '../models/location';
 
 export default async function mobileRoutes(fastify: FastifyInstance) {
 
@@ -173,6 +173,42 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
             return { status: 'ok', updated_at: new Date(), ...updated };
         } catch (e) {
             reply.code(400).send({ error: 'Invalid settings' });
+        }
+    });
+
+    // 4b. Insights — a summary of what an MCP assistant can derive from this
+    // account's data, shown in the app's Assistants tab. Device-key authed, so
+    // it returns the user's own full-precision data (no MCP precision limits).
+    fastify.get('/insights', async (request, reply) => {
+        const userId = (request as any).userId;
+        try {
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const [totalPoints, latest, frequent, week] = await Promise.all([
+                getTotalLocationCount(userId),
+                getLatestLocation(userId),
+                getFrequentLocations(userId, 3, 30),
+                getDistanceSummary(userId, { start: weekAgo })
+            ]);
+
+            return {
+                total_points: totalPoints,
+                latest: latest ? {
+                    latitude: latest.latitude,
+                    longitude: latest.longitude,
+                    timestamp: latest.timestamp
+                } : null,
+                frequent_place_count: frequent.length,
+                top_places: frequent.map((p: any) => ({
+                    latitude: p.latitude,
+                    longitude: p.longitude,
+                    visit_count: p.visit_count
+                })),
+                distance_last_7_days_meters: Math.round(week.meters),
+                points_last_7_days: week.points
+            };
+        } catch (err) {
+            fastify.log.error(err);
+            return reply.code(500).send({ error: { code: 'INTERNAL_ERROR', message: 'Could not compute insights' } });
         }
     });
 
