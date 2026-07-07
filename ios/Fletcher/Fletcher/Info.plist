@@ -4,8 +4,18 @@
 <dict>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
+		<!-- Public servers (e.g. fletcher.to) must use HTTPS. Plain HTTP is
+		     permitted only for localhost and local-network self-hosting. -->
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+		</dict>
 	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
@@ -13,9 +23,9 @@
 		<string>fetch</string>
 	</array>
     <key>CFBundleShortVersionString</key>
-    <string>1.6.7</string>
+    <string>1.6.8</string>
     <key>CFBundleVersion</key>
-    <string>8</string>
+    <string>9</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>NSLocationWhenInUseUsageDescription</key>

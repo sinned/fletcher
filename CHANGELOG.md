@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.6.8] - 2026-07-06
+### Changed
+- **iOS**: Default server domain is now `https://fletcher.to`. Existing installs on the legacy `fletcher-server.onrender.com` host are migrated automatically on launch (same backend/database, so stored credentials keep working). Centralized the server URL in `AppConstants.Server` (2026-07-06)
+- **iOS/Security**: Scoped down App Transport Security — replaced the global `NSAllowsArbitraryLoads` with a localhost exception plus `NSAllowsLocalNetworking`, so public servers must use HTTPS while local/self-hosted dev over HTTP still works (2026-07-06)
+
+### Fixed
+- **iOS**: Fixed a data race in `LocationStore.save()` — the locations array was encoded on a background queue while the main thread mutated it, which could crash or corrupt `locations.json`. The array is now snapshotted on the calling thread before encoding (2026-07-06)
+
 ## [Server 2.1.0] - 2026-07-06 — Security hardening
 Addresses the open findings in `artifacts/code_review_2026-07-03.md` before the repo goes public.
 
@@ -21,10 +29,9 @@ Addresses the open findings in `artifacts/code_review_2026-07-03.md` before the 
 - `get_location_history`: validate the IANA timezone and date inputs (invalid values now return a tool error instead of crashing into SQL), treat a bare `end_date` as end-of-day (same-day ranges work), and clamp `limit`/`offset` to sane bounds.
 - `/api/register` auth exemption now matches on path only, so a query string can't turn it into a 401.
 
-## [1.6.7] - 2026-07-06
+## [Repo & Web] - 2026-07-06 — open-source prep
 ### Changed
-- **iOS**: Default server domain is now `https://fletcher.to`. Existing installs on the legacy `fletcher-server.onrender.com` host are migrated automatically on launch (same backend/database, so stored credentials keep working). Centralized the server URL in `AppConstants.Server` to remove the six-way string duplication across the app (2026-07-06)
-- **Server**: MCP connection instructions now use `https://fletcher.to` as the production SSE base URL fallback (was a stale `mcp.fletcher.app`); still overridable via the `BASE_URL` env var. Server 2.0.2 (2026-07-06)
+- **Server**: MCP connection instructions now use `https://fletcher.to` as the production SSE base URL fallback (was a stale `mcp.fletcher.app`); still overridable via the `BASE_URL` env var (2026-07-06)
 - **Web**: Added a source-code link (footer + self-host callout) to the landing page ahead of open-sourcing the repo (2026-07-06)
 
 ### Removed
