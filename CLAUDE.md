@@ -96,7 +96,6 @@ chore: bump version to vX.Y.Z
 ```bash
 PORT=3000
 DATABASE_URL=postgres://user:password@localhost:5432/fletcher
-API_SECRET_KEY=<secret>
 NODE_ENV=development
 BASE_URL=http://localhost:3000
 CORS_ORIGIN=http://localhost:3000
