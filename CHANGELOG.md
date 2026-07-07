@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [1.6.8] - 2026-07-06
+### Changed
+- **iOS**: Default server domain is now `https://fletcher.to`. Existing installs on the legacy `fletcher-server.onrender.com` host are migrated automatically on launch (same backend/database, so stored credentials keep working). Centralized the server URL in `AppConstants.Server` (2026-07-06)
+- **iOS/Security**: Scoped down App Transport Security — replaced the global `NSAllowsArbitraryLoads` with a localhost exception plus `NSAllowsLocalNetworking`, so public servers must use HTTPS while local/self-hosted dev over HTTP still works (2026-07-06)
+
+### Fixed
+- **iOS**: Fixed a data race in `LocationStore.save()` — the locations array was encoded on a background queue while the main thread mutated it, which could crash or corrupt `locations.json`. The array is now snapshotted on the calling thread before encoding (2026-07-06)
+
+## [Server 2.1.0] - 2026-07-06 — Security hardening
+Addresses the open findings in `artifacts/code_review_2026-07-03.md` before the repo goes public.
+
+### Security
+- **MCP tokens are now hashed at rest** (sha256). A one-time, idempotent, non-destructive migration in `schema.sql` hashes the existing tokens in place and backfills a display-only `token_preview` column — users' current tokens keep working. The plaintext token is shown once at creation and never stored.
+- **Stopped leaking credentials in logs**: removed the debug query/log in `validateMCPToken` that printed token + expiry on every failed validation, and the request logger now redacts a `?token=` query param from URLs.
+- **Global rate limiting** on all routes (120/min/IP), with a stricter 10 per 15 min on MCP token generation. Previously only the MCP management routes were limited — `register`, `locations`, and `/sse` had none.
+- **CORS fails closed in production** when `CORS_ORIGIN` is unset (was reflecting any origin with credentials).
+- **`/status/` no longer exposes aggregate user/location counts.**
+- Removed the unused `API_SECRET_KEY` from `.env.example`.
+
+### Privacy
+- The MCP tools now **enforce `history_access_days`** (assistants can't read further back than the user's window) and **honor the `enabled` switch** (a disabled account shares nothing, at connect and per request).
+- Privacy settings are **re-fetched on every request** instead of snapshotted at connection, so tightening precision/history or disabling access takes effect mid-session.
+
+### Fixed
+- `get_location_history`: validate the IANA timezone and date inputs (invalid values now return a tool error instead of crashing into SQL), treat a bare `end_date` as end-of-day (same-day ranges work), and clamp `limit`/`offset` to sane bounds.
+- `/api/register` auth exemption now matches on path only, so a query string can't turn it into a 401.
+
+## [Repo & Web] - 2026-07-06 — open-source prep
+### Changed
+- **Server**: MCP connection instructions now use `https://fletcher.to` as the production SSE base URL fallback (was a stale `mcp.fletcher.app`); still overridable via the `BASE_URL` env var (2026-07-06)
+- **Web**: Added a source-code link (footer + self-host callout) to the landing page ahead of open-sourcing the repo (2026-07-06)
+
+### Removed
+- **Server**: Deleted `src/routes/locations.ts` — unregistered but unauthenticated route that trusted a client-supplied `X-User-Id`; removed ahead of making the repo public (2026-07-06)
+- **Repo**: Removed committed dev scratch (runtime log, `debug_token.ts` with a hardcoded token, ad-hoc `verify_*.sh`/`migrate_*`/`clean_db.sql` scripts); added `*.log` to `.gitignore`
+
+### Added
+- **Repo**: MIT `LICENSE`; README links (site, TestFlight, license), deduped iOS setup steps, corrected API endpoint list (2026-07-06)
+
 ## [Server 2.0.1] - 2026-07-06
 ### Changed
 - **Web**: Rewrote landing-page privacy copy to explain the actual mechanism (anonymous ID, per-token assistant access with precision control, access log, retention) and corrected the sync card's "your personal server" overclaim; added a "How your privacy actually works" section (2026-07-06)

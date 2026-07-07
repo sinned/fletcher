@@ -4,6 +4,15 @@
 **Scope:** Entire server (`server/src/`) and iOS app core (`Services`, `Storage`, `Location`, `Utilities`), schema, repo hygiene.
 **Relation to prior review:** `code_review_2026-02-22.md` covered maintainability (auth duplication, dynamic imports, error taxonomy, comment debt). All of those findings remain open and are not repeated in detail here. This review focuses on correctness, privacy enforcement, and security.
 
+## Status (updated 2026-07-06)
+
+**Resolved** in server 2.0.1 / 2.1.0 and PR #10:
+- #1 MCP privacy-settings bug (2.0.1) · #2 history_access_days enforced · #3 `enabled` flag honored · #4 per-request settings fetch (no more connect-time snapshot)
+- #5 MCP tokens hashed at rest (+ non-destructive migration) · #6 `?token=` redacted from logs · #7 `routes/locations.ts` deleted · #8 credential-leaking debug log removed · #9 global rate limiting
+- #13 date/timezone validation · #15 register route match · #16 dev junk removed · #17 `API_SECRET_KEY` dropped · #19 CORS fail-closed · #20 `/status` counts removed
+
+**Still open** (need an iOS release or larger refactor): #10 duplicate-location constraint, #11 LocationStore data race, #12 token-expiry doc mismatch, #14 409 re-register orphaning, #18 ATS scope, #21 mobile GET bypasses models, #22 auth-hook duplication / dynamic imports, #23 test suite.
+
 ---
 
 ## P0 — Privacy features that don't actually work

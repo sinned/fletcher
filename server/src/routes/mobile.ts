@@ -8,9 +8,10 @@ export default async function mobileRoutes(fastify: FastifyInstance) {
 
     // Auth Middleware for Mobile Routes (except register)
     fastify.addHook('onRequest', async (request, reply) => {
-        const url = request.url;
-        // Check for register or other exempted paths
-        if (url === '/api/register' || url.startsWith('/auth') || url.startsWith('/mcp')) {
+        // Match on the path only — a query string must not defeat the exemption.
+        const path = request.url.split('?')[0];
+        // Registration is the one unauthenticated mobile endpoint.
+        if (path === '/api/register') {
             return;
         }
 

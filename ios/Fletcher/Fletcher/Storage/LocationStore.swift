@@ -72,10 +72,13 @@ class LocationStore: ObservableObject {
     }
     
     private func save() {
-        // Dispatch to background to avoid blocking main thread
+        // Snapshot on the caller's thread (mutations happen on main). Encoding
+        // the live `locations` array on a background queue while the main thread
+        // mutates it is a data race that can crash or corrupt locations.json.
+        let snapshot = locations
         DispatchQueue.global(qos: .background).async {
             do {
-                let data = try JSONEncoder().encode(self.locations)
+                let data = try JSONEncoder().encode(snapshot)
                 try data.write(to: self.fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             } catch {
                 print("Failed to save locations: \(error)")

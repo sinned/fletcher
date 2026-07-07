@@ -15,4 +15,10 @@ enum AppConstants {
     enum Defaults {
         static let retentionDays = 30
     }
+
+    enum Server {
+        static let defaultURL = "https://fletcher.to"
+        // Previous default; existing installs are migrated to defaultURL on launch.
+        static let legacyURL = "https://fletcher-server.onrender.com"
+    }
 }

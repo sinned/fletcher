@@ -4,7 +4,7 @@ struct SettingsView: View {
 
     @AppStorage("locationPrecision") private var precision: Double = 1.0
     @AppStorage("retentionDays") private var retentionDays: Int = 30
-    @AppStorage("serverURL") private var serverURL: String = "https://fletcher-server.onrender.com"
+    @AppStorage("serverURL") private var serverURL: String = AppConstants.Server.defaultURL
     @State private var showDeleteConfirmation = false
     @State private var showDeleteServerConfirmation = false
     
@@ -83,9 +83,9 @@ struct SettingsView: View {
                     }
                     
                     Button("Reset to Default") {
-                        serverURL = "https://fletcher-server.onrender.com"
+                        serverURL = AppConstants.Server.defaultURL
                     }
-                    .disabled(serverURL == "https://fletcher-server.onrender.com")
+                    .disabled(serverURL == AppConstants.Server.defaultURL)
                 }
                 
                 Section {

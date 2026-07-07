@@ -1,7 +1,9 @@
-# Fletcher MVP
+# Fletcher
+
+**Website:** [fletcher.to](https://fletcher.to) · **Beta:** [TestFlight](https://testflight.apple.com/join/b68RvuHg) · **License:** [MIT](LICENSE)
 
 ## Overview
-Fletcher is a privacy-first location tracking app that enables AI assistants to provide location-aware assistance through Model Context Protocol (MCP).
+Fletcher is a privacy-first location tracking app that enables AI assistants to provide location-aware assistance through the Model Context Protocol (MCP). No account or personal info is collected (just a random device ID); assistant access is scoped, logged, revocable, precision-limited, and retention-limited; and you can run the sync server yourself.
 
 ## Features
 - **Background Tracking**: Efficiently tracks location in the background with "Always" permission.
@@ -58,11 +60,6 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
    - `NSLocationWhenInUseUsageDescription`
    - `UIBackgroundModes`: select `location` and `fetch`.
 5. Build and run on a device (Simulator doesn't support "Always" location well).
-4. Add `Info.plist` keys:
-   - `NSLocationAlwaysAndWhenInUseUsageDescription`
-   - `NSLocationWhenInUseUsageDescription`
-   - `UIBackgroundModes`: select `location` and `fetch`.
-5. Build and run on a device (Simulator doesn't support "Always" location well).
 
 ## API Endpoints
 - `GET /health`: Health check (DB + PostGIS)
@@ -70,8 +67,7 @@ Fletcher is a privacy-first location tracking app that enables AI assistants to 
 - `POST /api/locations`: Upload location history
 - `GET /api/locations`: Get location history (paginated)
 - `POST /api/mcp/generate-token`: Generate MCP connection token
-- `GET /mcp/sse`: MCP Server-Sent Events endpoint
-- `POST /auth/oauth/authorize`: OAuth2 Authorization
+- `GET /sse`: MCP Server-Sent Events endpoint (Bearer token auth)
 
 ## Deployment
 See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying the MCP Server to Render.
@@ -79,3 +75,6 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying the MC
 ## Verification
 - Visit `http://localhost:3000/status/` to check stats.
 - Visit `http://localhost:3000/` to verify the Landing Page.
+
+## License
+Fletcher is open source under the [MIT License](LICENSE).

@@ -9,8 +9,8 @@ class APIClient: ObservableObject {
     @Published var lastSyncError: String?
     
     private var baseURL: URL {
-        let defaultURL = URL(string: "https://fletcher-server.onrender.com/api")!
-        let stored = UserDefaults.standard.string(forKey: "serverURL") ?? "https://fletcher-server.onrender.com"
+        let defaultURL = URL(string: "\(AppConstants.Server.defaultURL)/api")!
+        let stored = UserDefaults.standard.string(forKey: "serverURL") ?? AppConstants.Server.defaultURL
         let clean = stored.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return URL(string: "\(clean)/api") ?? defaultURL
     }
