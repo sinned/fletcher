@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-07-06
+### Changed
+- **iOS**: Default server domain is now `https://fletcher.to`. Existing installs on the legacy `fletcher-server.onrender.com` host are migrated automatically on launch (same backend/database, so stored credentials keep working). Centralized the server URL in `AppConstants.Server` to remove the six-way string duplication across the app (2026-07-06)
+- **Server**: MCP connection instructions now use `https://fletcher.to` as the production SSE base URL fallback (was a stale `mcp.fletcher.app`); still overridable via the `BASE_URL` env var. Server 2.0.2 (2026-07-06)
+- **Web**: Added a source-code link (footer + self-host callout) to the landing page ahead of open-sourcing the repo (2026-07-06)
+
+### Removed
+- **Server**: Deleted `src/routes/locations.ts` — unregistered but unauthenticated route that trusted a client-supplied `X-User-Id`; removed ahead of making the repo public (2026-07-06)
+- **Repo**: Removed committed dev scratch (runtime log, `debug_token.ts` with a hardcoded token, ad-hoc `verify_*.sh`/`migrate_*`/`clean_db.sql` scripts); added `*.log` to `.gitignore`
+
+### Added
+- **Repo**: MIT `LICENSE`; README links (site, TestFlight, license), deduped iOS setup steps, corrected API endpoint list (2026-07-06)
+
 ## [Server 2.0.1] - 2026-07-06
 ### Changed
 - **Web**: Rewrote landing-page privacy copy to explain the actual mechanism (anonymous ID, per-token assistant access with precision control, access log, retention) and corrected the sync card's "your personal server" overclaim; added a "How your privacy actually works" section (2026-07-06)

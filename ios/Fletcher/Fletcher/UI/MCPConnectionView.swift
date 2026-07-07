@@ -13,7 +13,7 @@ struct MCPConnectionView: View {
     
     let assistantTypes = ["Claude", "ChatGPT", "Cursor", "Other"]
     
-    @AppStorage("serverURL") private var serverURL: String = "https://fletcher-server.onrender.com"
+    @AppStorage("serverURL") private var serverURL: String = AppConstants.Server.defaultURL
     
     var body: some View {
         List {

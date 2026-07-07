@@ -7,7 +7,7 @@ const getBaseUrl = () => {
     if (process.env.BASE_URL) return process.env.BASE_URL;
     const port = process.env.PORT || 3000;
     return process.env.NODE_ENV === 'production'
-        ? 'https://mcp.fletcher.app'
+        ? 'https://fletcher.to'
         : `http://localhost:${port}`;
 };
 

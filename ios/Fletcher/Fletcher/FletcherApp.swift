@@ -6,10 +6,12 @@ struct FletcherApp: App {
     @StateObject private var locationService = BackgroundLocationService()
 
     init() {
-        // Migration: If serverURL is stuck on localhost default, update it to Render
+        // Migration: move older installs off the localhost dev default and the
+        // legacy onrender host onto the current domain. Both point at the same
+        // backend/database, so a stored API key keeps working across the switch.
         let stored = UserDefaults.standard.string(forKey: "serverURL")
-        if stored == "http://localhost:3000" {
-            UserDefaults.standard.set("https://fletcher-server.onrender.com", forKey: "serverURL")
+        if stored == "http://localhost:3000" || stored == AppConstants.Server.legacyURL {
+            UserDefaults.standard.set(AppConstants.Server.defaultURL, forKey: "serverURL")
         }
 #if DEBUG
         if ProcessInfo.processInfo.environment["FLETCHER_DEMO_DATA"] == "1" {
