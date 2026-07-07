@@ -3,7 +3,7 @@
 **Website:** [fletcher.to](https://fletcher.to) · **Beta:** [TestFlight](https://testflight.apple.com/join/b68RvuHg) · **License:** [MIT](LICENSE)
 
 ## Overview
-Fletcher is a privacy-first location tracking app that enables AI assistants to provide location-aware assistance through the Model Context Protocol (MCP). Your history is anonymous (no account, just a random device ID), every AI request is logged for you to audit, and you can run the sync server yourself.
+Fletcher is a privacy-first location tracking app that enables AI assistants to provide location-aware assistance through the Model Context Protocol (MCP). No account or personal info is collected (just a random device ID); assistant access is scoped, logged, revocable, precision-limited, and retention-limited; and you can run the sync server yourself.
 
 ## Features
 - **Background Tracking**: Efficiently tracks location in the background with "Always" permission.
