@@ -35,8 +35,8 @@ Go to your Web Service -> **Environment**. Add the following:
 | Key | Value | Description |
 | :--- | :--- | :--- |
 | `DATABASE_URL` | `postgres://...` | Paste the **Internal Database URL** from Step 3. |
-| `API_SECRET_KEY` | (Generate a random string) | Used for internal crypto/security. |
-| `NODE_ENV` | `production` | Optimizes performance. |
+| `NODE_ENV` | `production` | Required — enables HTTPS-only CORS and the production base URL. |
+| `BASE_URL` | `https://fletcher.to` | Optional — base URL shown in MCP connection instructions. Falls back to `https://fletcher.to` when `NODE_ENV=production`. |
 | `PORT` | `3000` | Render expects the app to listen on a port (usually defaults to 10000, but we can set specific one). Fastify listens on 0.0.0.0. |
 
 ## Step 5: Initialize Database
