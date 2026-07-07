@@ -34,8 +34,8 @@
             <div class="features">
                 <div class="feature-card">
                     <h3>🔒 Privacy First</h3>
-                    <p>Your data belongs to you. Isolation by default, strict retention policies, and immediate
-                        deletion.</p>
+                    <p>No account, no email, no name — just an anonymous device ID. You choose how long history is
+                        kept, and deletion is immediate.</p>
                 </div>
                 <div class="feature-card">
                     <h3>🤖 Native MCP Support</h3>
@@ -52,13 +52,43 @@
                 </div>
                 <div class="feature-card">
                     <h3>⚡️ Seamless Sync</h3>
-                    <p>Secure, encrypted synchronization between your iOS device and your personal server.</p>
+                    <p>Your history syncs over HTTPS to the Fletcher server — or point the app at a server you host
+                        yourself.</p>
                 </div>
                 <div class="feature-card">
                     <h3>🔋 Efficient Tracking</h3>
                     <p>Optimized background location tracking that respects your battery life.</p>
                 </div>
             </div>
+
+            <h2 style="margin-top: 4rem; color: white;">How your privacy actually works</h2>
+            <p class="subtitle">Not a promise — a mechanism. Here is the whole flow:</p>
+
+            <div class="features">
+                <div class="feature-card">
+                    <h3>1. You are anonymous</h3>
+                    <p>Fletcher never asks who you are. The app registers with a random device ID — no name, email,
+                        phone number, or account. There is nothing to link your location history to you.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>2. Assistants get keys, not doors</h3>
+                    <p>An AI assistant can only see your locations if you create a token for it — and you decide the
+                        precision it sees: exact, ~100 m, or ~1 km. Revoke a token and access stops mid-session.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>3. Every access leaves a trace</h3>
+                    <p>Each assistant request is written to a log you can read in the app: what was asked, when, and
+                        how many locations were returned. No silent access, ever.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>4. Data expires on your schedule</h3>
+                    <p>Pick a retention window from 7 days to forever. Old points are purged automatically — on your
+                        device and on the server. Or wipe everything, everywhere, with one tap.</p>
+                </div>
+            </div>
+
+            <p class="subtitle" style="margin-top: 2rem;">No ads. No analytics. No data sales. Prefer zero trust?
+                <strong>Run the Fletcher server yourself</strong> and your data never touches ours.</p>
         </main>
 
         <footer>

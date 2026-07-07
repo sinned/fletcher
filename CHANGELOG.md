@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ## [Server 2.0.1] - 2026-07-06
+### Changed
+- **Web**: Rewrote landing-page privacy copy to explain the actual mechanism (anonymous ID, per-token assistant access with precision control, access log, retention) and corrected the sync card's "your personal server" overclaim; added a "How your privacy actually works" section (2026-07-06)
+- **Web**: Corrected the privacy policy — removed the false altitude/speed collection claim, documented the anonymous device ID, assistant token flow, access logging, hosted-vs-self-hosted data location, retention/deletion, and security posture (2026-07-06)
+
 ### Fixed
 - **MCP/Privacy**: The MCP server now actually applies the user's `precision_level` and `history_access_days` settings. It previously read them through a non-existent nested field (`privacy_settings.precision_level` on an already-flattened object), so every session ran with precision "medium" and a 7-day history window regardless of the user's choice (2026-07-06)
 

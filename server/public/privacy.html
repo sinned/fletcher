@@ -26,35 +26,60 @@
 
         <main class="page-content">
             <h1>Privacy Policy</h1>
-            <p class="subtitle">Last updated: December 24, 2025</p>
+            <p class="subtitle">Last updated: July 6, 2026</p>
 
             <h2>1. Introduction</h2>
-            <p>Welcome to Fletcher ("we," "our," or "us"). We respect your privacy and are committed to protecting your
-                personal data. This privacy policy will inform you as to how we look after your personal data when you
-                use our mobile application and server software.</p>
+            <p>Fletcher ("we," "our," or "us") is a privacy-first location tracking app and sync server. This policy
+                describes exactly what data Fletcher handles and how. It is written to match what the software
+                actually does.</p>
 
             <h2>2. The Data We Collect</h2>
-            <p>The primary data collected is your location data (latitude, longitude, timestamp, altitude, speed). This
-                data
-                is stored on our servers.</p>
-            <p>We may access your data to debug issues and improve the service.</p>
+            <p>Fletcher collects the minimum needed to provide the service:</p>
+            <ul>
+                <li><strong>Location points</strong>: latitude, longitude, GPS accuracy, and timestamp. Nothing else —
+                    no altitude, speed, heading, or motion data.</li>
+                <li><strong>An anonymous device identifier</strong>: a random ID generated on your device. We never ask
+                    for or store your name, email address, phone number, contacts, or any advertising identifier.
+                    There is no user account.</li>
+                <li><strong>Assistant access records</strong>: when an AI assistant you connected requests your data,
+                    we log which assistant type, what was requested, when, and how many locations were returned. This
+                    log exists so <em>you</em> can audit access from inside the app.</li>
+            </ul>
 
             <h2>3. How We Use Your Data</h2>
             <p>Your data is used solely to provide the Fletcher service to you:</p>
             <ul>
-                <li>To visualize your location history.</li>
-                <li>To provide insights via the Assistant feature.</li>
+                <li>To store and visualize your location history.</li>
+                <li>To answer queries from AI assistants that you have explicitly connected with a token.</li>
             </ul>
+            <p>We do not use analytics or advertising SDKs, and we do not profile you.</p>
 
-            <h2>4. Data Sharing</h2>
-            <p>We do not sell, trade, or otherwise transfer your personally identifiable information to outside parties.
-            </p>
+            <h2>4. AI Assistant Access</h2>
+            <p>No assistant can see your data unless you generate a connection token in the app. You control the
+                precision assistants receive (exact, ~100 m, or ~1 km) and how far back they can look. You can revoke
+                a token at any time; revocation takes effect immediately, including for sessions already connected.
+                Every request is recorded in the access log described above.</p>
 
-            <h2>5. Your Rights</h2>
-            <p>You have full control over your data. You can delete your location history at any time from within the
-                app.</p>
+            <h2>5. Data Sharing</h2>
+            <p>We do not sell, trade, share, or otherwise transfer your data to outside parties. Your location data
+                leaves the server only in response to your app or an assistant token you created.</p>
 
-            <h2>6. Contact Us</h2>
+            <h2>6. Where Your Data Lives</h2>
+            <p>By default the app syncs to the hosted Fletcher server. As its operators we have technical access to
+                the database for operations and debugging, and we access it only for those purposes. If you prefer
+                that your data never reach infrastructure we operate, you can run the Fletcher server yourself and
+                point the app at it in Settings — self-hosted data never touches our systems.</p>
+
+            <h2>7. Retention and Deletion</h2>
+            <p>You choose the retention period, from 7 days to indefinite. Expired points are purged automatically on
+                your device and on the server. You can also delete individual points, or delete your entire history
+                from both the device and the server, at any time from within the app. Deletion is immediate.</p>
+
+            <h2>8. Security</h2>
+            <p>All traffic between the app, the server, and connected assistants uses HTTPS. Device credentials are
+                stored hashed on the server and kept in the iOS Keychain on your device.</p>
+
+            <h2>9. Contact Us</h2>
             <p>If you have any questions about this privacy policy, please contact us.</p>
         </main>
 
