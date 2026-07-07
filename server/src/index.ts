@@ -13,6 +13,9 @@ import crypto from 'crypto';
 
 dotenv.config();
 
+// Redact an MCP token passed as a query param so it never lands in request logs.
+const redactUrl = (url: string) => url.replace(/([?&]token=)[^&]*/gi, '$1[REDACTED]');
+
 const server = fastify({
     logger: {
         level: process.env.LOG_LEVEL || 'info',
@@ -20,7 +23,7 @@ const server = fastify({
             req(request) {
                 return {
                     method: request.method,
-                    url: request.url,
+                    url: redactUrl(request.url),
                     remoteAddress: request.ip,
                     requestId: request.id
                 };
@@ -33,8 +36,21 @@ const server = fastify({
 
 server.register(requestId);
 server.register(cors, {
-    origin: process.env.CORS_ORIGIN || true,
+    // Native app + MCP servers don't use CORS; only browsers do. Fail closed in
+    // production when no explicit origin is configured.
+    origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? false : true),
     credentials: true
+});
+
+// Global rate limit. Routes can tighten this via `config.rateLimit`.
+server.register(require('@fastify/rate-limit'), {
+    global: true,
+    max: 120,
+    timeWindow: '1 minute',
+    allowList: ['127.0.0.1'],
+    errorResponseBuilder: (_req: any, context: any) => ({
+        error: { code: 'RATE_LIMIT_EXCEEDED', message: `Rate limit exceeded, retry after ${context.after}` }
+    })
 });
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -98,22 +114,16 @@ server.get('/health', async (request, reply) => {
     }
 });
 
-// Status route - stats (Moved from /)
+// Status route - public operational status. Aggregate user/location counts are
+// intentionally not exposed here.
 server.get('/status/', async (request, reply) => {
     try {
-        const usersRes = await query('SELECT COUNT(*) as count FROM users');
-        const locationsRes = await query('SELECT COUNT(*) as count FROM locations');
-
-        return {
-            status: 'ok',
-            version: SERVER_VERSION,
-            users: parseInt(usersRes.rows[0].count),
-            locations: parseInt(locationsRes.rows[0].count)
-        };
+        await query('SELECT 1');
+        return { status: 'ok', version: SERVER_VERSION };
     } catch (e) {
         server.log.error(e);
         reply.code(500);
-        return { status: 'error', message: 'Could not fetch stats' };
+        return { status: 'error', message: 'Service unavailable' };
     }
 });
 

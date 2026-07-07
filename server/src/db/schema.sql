@@ -80,6 +80,20 @@ CREATE INDEX IF NOT EXISTS idx_assistant_expires
     ON assistant_connections(expires_at) 
     WHERE revoked_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_assistant_revoked 
-    ON assistant_connections(revoked_at) 
+CREATE INDEX IF NOT EXISTS idx_assistant_revoked
+    ON assistant_connections(revoked_at)
     WHERE revoked_at IS NOT NULL;
+
+-- Migration: hash MCP tokens at rest (v2.1.0)
+-- Adds a display-safe preview column and rewrites any still-plaintext tokens to
+-- their sha256 hash. Idempotent: once hashed, a value no longer starts with
+-- 'mcp_', so redeploys skip it. Non-destructive: users' existing tokens keep
+-- working because the server hashes the presented token on lookup.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+ALTER TABLE assistant_connections ADD COLUMN IF NOT EXISTS token_preview TEXT;
+
+UPDATE assistant_connections
+   SET token_preview = COALESCE(token_preview, left(mcp_token, 8) || '...' || right(mcp_token, 4)),
+       mcp_token = encode(digest(mcp_token, 'sha256'), 'hex')
+ WHERE left(mcp_token, 4) = 'mcp_';

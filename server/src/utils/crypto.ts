@@ -23,6 +23,21 @@ export function generateMCPToken(): string {
     return `mcp_${token}`;
 }
 
+// MCP tokens grant live location access, so we store only a hash — never the
+// plaintext. sha256 hex must match Postgres `encode(digest(token,'sha256'),'hex')`
+// used by the one-time migration in schema.sql.
+export function hashMCPToken(token: string): string {
+    return crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex');
+}
+
+// The last few characters shown in the app's token list (safe to display).
+export function mcpTokenPreview(token: string): string {
+    return `${token.substring(0, 8)}...${token.slice(-4)}`;
+}
+
 export function generateAuthCode(): string {
     const randomBytes = crypto.randomBytes(16);
     return `auth_${randomBytes.toString('base64url')}`;
