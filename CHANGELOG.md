@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [Server 2.0.1] - 2026-07-06
+### Fixed
+- **MCP/Privacy**: The MCP server now actually applies the user's `precision_level` and `history_access_days` settings. It previously read them through a non-existent nested field (`privacy_settings.precision_level` on an already-flattened object), so every session ran with precision "medium" and a 7-day history window regardless of the user's choice (2026-07-06)
+
 ## [1.6.6] - 2026-07-05
 ### Changed
 - **Platform**: App Store target is now iPhone-only (`TARGETED_DEVICE_FAMILY = 1`); the iPad split-view layout was not presentable and iPad support will return once the UI is adapted (2026-07-05)
