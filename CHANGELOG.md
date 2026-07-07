@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-07
+### Added
+- **MCP**: Three new assistant tools (server 2.2.0) — `get_location_at_time` ("where was I at 3pm yesterday?"), `get_distance_summary` ("how far did I travel this week?", returns distance only, no coordinates), and `get_place_visits` ("how often did I go to the gym?"). All enforce the same privacy settings (precision, history window, enabled flag) and input validation as the existing tools (2026-07-07)
+- **iOS/Assistants tab**: A capability showcase demonstrating what a connected assistant can do — a live "what your assistant can see" summary (points tracked, distance this week, frequent-place count) computed from your own data via a new `GET /api/insights` endpoint, plus tappable example prompts mapped to each MCP tool (2026-07-07)
+
 ## [1.6.9] - 2026-07-07
 ### Fixed
 - **iOS/Sync**: Duplicate-location hardening (with server 2.1.1). Widened the local dedup tolerance to ~1s so points that round-trip through the server (which stores second-precision timestamps) are recognized instead of re-added as near-duplicates; made the `isSyncing` guard an atomic check-and-set so overlapping triggers (timer, visit, manual) can't run concurrent syncs (2026-07-07)

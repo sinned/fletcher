@@ -474,6 +474,23 @@ class APIClient: ObservableObject {
         return try decoder.decode(MCPRequestsResponse.self, from: data)
     }
     
+    func fetchInsights() async throws -> MCPInsights {
+        guard let url = URL(string: "\(baseURL.absoluteString)/insights") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let key = apiKey {
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(MCPInsights.self, from: data)
+    }
+
     func checkHealth() async -> Bool {
         guard let url = URL(string: baseURL.absoluteString.replacingOccurrences(of: "/api", with: "/health")) else { return false }
         
