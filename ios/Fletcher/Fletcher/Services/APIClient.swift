@@ -22,13 +22,17 @@ class APIClient: ObservableObject {
     }
     
     private func syncAllLocations() async {
-        guard !isSyncing else { return }
-        
-        await MainActor.run {
+        // Atomic check-and-set on the main actor so concurrent triggers (sync
+        // timer, visit events, manual log) can't both pass the guard and run
+        // overlapping syncs.
+        let shouldProceed = await MainActor.run { () -> Bool in
+            if self.isSyncing { return false }
             self.isSyncing = true
             self.lastSyncError = nil
+            return true
         }
-        
+        guard shouldProceed else { return }
+
         defer {
             Task { @MainActor in
                 self.isSyncing = false
@@ -299,10 +303,21 @@ class APIClient: ObservableObject {
                     let res = try JSONDecoder().decode(RegisterResponse.self, from: data)
                     _ = KeychainManager.save(key: "apiKey", data: res.api_key)
                     UserDefaults.standard.set(id.uuidString, forKey: "userId") // Store ID too
-                    print("Registered with API Key: \(res.api_key)")
+                    print("Registered device (user \(id.uuidString))")
                 } else if httpResponse.statusCode == 409 {
-                    print("Registration 409 Conflict. Likely existing user without key. Retrying with new ID...")
-                    await registerDevice(forceNew: true)
+                    // The server already has this device's user_id, but we don't
+                    // have its API key (Keychain locked, or key lost). Minting a
+                    // NEW identity here would abandon this account's location
+                    // history on the server — unreachable and undeletable, the
+                    // worst outcome for a privacy app. So do not create a new
+                    // identity: keep the user_id and surface the state. A later
+                    // launch (once Keychain is readable) recovers automatically
+                    // via the early-return above; genuine key loss needs a
+                    // deliberate reset.
+                    print("Registration 409: user_id exists but key is unavailable; not creating a new identity.")
+                    await MainActor.run {
+                        self.lastSyncError = "Saved credentials are temporarily unavailable. If this persists, reset app data in Settings."
+                    }
                 } else {
                     print("Registration failed: \(httpResponse.statusCode)")
                 }

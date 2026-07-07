@@ -26,9 +26,13 @@ export const saveLocations = async (userId: string, locations: LocationPoint[]) 
             values.push(userId, loc.longitude, loc.latitude, loc.accuracy, loc.timestamp);
         });
 
+        // ON CONFLICT DO NOTHING makes re-sync idempotent: re-uploading the same
+        // points (matched by the unique index on user_id, timestamp) is a no-op
+        // rather than creating duplicates.
         const query = `
             INSERT INTO locations (user_id, point, accuracy, timestamp)
             VALUES ${valueStrings.join(', ')}
+            ON CONFLICT (user_id, timestamp) DO NOTHING
         `;
 
         await client.query(query, values);

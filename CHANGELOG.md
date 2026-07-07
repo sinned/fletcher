@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.6.9] - 2026-07-07
+### Fixed
+- **iOS/Sync**: Duplicate-location hardening (with server 2.1.1). Widened the local dedup tolerance to ~1s so points that round-trip through the server (which stores second-precision timestamps) are recognized instead of re-added as near-duplicates; made the `isSyncing` guard an atomic check-and-set so overlapping triggers (timer, visit, manual) can't run concurrent syncs (2026-07-07)
+- **iOS/Privacy**: On a `409` during device registration, the app no longer mints a brand-new user ID. Doing so abandoned the existing account's location history on the server (unreachable and undeletable). It now keeps the stored user ID and surfaces the state; a transient Keychain-locked state recovers on the next launch (2026-07-07)
+- **iOS**: Removed the API key from a debug `print` on successful registration (2026-07-07)
+
+## [Server 2.1.1] - 2026-07-07
+### Fixed
+- **Locations**: De-duplicate at the source. A migration removes existing duplicate rows and adds a `UNIQUE (user_id, timestamp)` index; batch inserts use `ON CONFLICT DO NOTHING`, so re-syncing the same points is now a no-op instead of accumulating duplicates. Migration is idempotent and verified against Postgres (2026-07-07)
+
 ## [1.6.8] - 2026-07-06
 ### Changed
 - **iOS**: Default server domain is now `https://fletcher.to`. Existing installs on the legacy `fletcher-server.onrender.com` host are migrated automatically on launch (same backend/database, so stored credentials keep working). Centralized the server URL in `AppConstants.Server` (2026-07-06)

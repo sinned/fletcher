@@ -23,9 +23,12 @@ class LocationStore: ObservableObject {
     func mergeLocations(_ newLocations: [LocationPoint]) {
         var addedCount = 0
         for loc in newLocations {
-            // Deduplication logic: Match by ID or timestamp (within 1ms tolerance).
-            // Server generates new UUIDs, so we rely on timestamp matching for local->server reconciliation.
-            if !locations.contains(where: { $0.id == loc.id || abs($0.timestamp.timeIntervalSince(loc.timestamp)) < 0.001 }) {
+            // Deduplication: match by ID, or by timestamp within ~1s. The server
+            // stores/returns timestamps at second precision (the upload encodes
+            // ISO-8601 without fractional seconds), so a round-tripped point can
+            // differ from its local original by up to ~1s. A tight (1ms)
+            // tolerance missed these and produced local near-duplicates on resync.
+            if !locations.contains(where: { $0.id == loc.id || abs($0.timestamp.timeIntervalSince(loc.timestamp)) < 1.0 }) {
                 locations.append(loc)
                 addedCount += 1
             }
