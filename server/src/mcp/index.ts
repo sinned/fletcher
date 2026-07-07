@@ -57,8 +57,11 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
 
         // Retrieve privacy settings for this session context
         const privacy = await getPrivacySettings(userId);
-        const precision = privacy?.privacy_settings?.precision_level || 'medium';
-        const historyDays = privacy?.privacy_settings?.history_access_days || 7;
+        // getPrivacySettings() returns a flattened object ({precision_level, ...}),
+        // not the raw users row — reading .privacy_settings here silently ignored
+        // the user's choices and always fell back to the defaults.
+        const precision = privacy?.precision_level || 'medium';
+        const historyDays = privacy?.history_access_days || 7;
 
         // 2. Create Server
         const mcp = new McpServer({
