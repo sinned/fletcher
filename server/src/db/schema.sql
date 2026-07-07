@@ -97,3 +97,18 @@ UPDATE assistant_connections
    SET token_preview = COALESCE(token_preview, left(mcp_token, 8) || '...' || right(mcp_token, 4)),
        mcp_token = encode(digest(mcp_token, 'sha256'), 'hex')
  WHERE left(mcp_token, 4) = 'mcp_';
+
+-- Migration: dedupe locations and enforce one point per (user, timestamp) (v2.1.1)
+-- Removes any existing duplicate rows (keeping the earliest id per key) so the
+-- unique index can be created, then adds it. Combined with ON CONFLICT DO
+-- NOTHING on insert, this stops re-sync from ever re-inserting the same points.
+-- Idempotent: after the first run the DELETE affects no rows and the index
+-- already exists.
+DELETE FROM locations a
+      USING locations b
+      WHERE a.user_id = b.user_id
+        AND a.timestamp = b.timestamp
+        AND a.id > b.id;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_locations_user_ts_unique
+    ON locations(user_id, timestamp);
