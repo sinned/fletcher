@@ -808,8 +808,11 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 if (!IANAZone.isValidZone(timezone)) {
                     return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
                 }
+                // Clamp to the accessible window so coverage never reports data
+                // outside the history the assistant is allowed to read.
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
                 const startTime = Date.now();
-                const cov = await getDataCoverage(userId, timezone);
+                const cov = await getDataCoverage(userId, timezone, { start: cutoff });
                 await logAccess(userId, assistantType, 'get_data_coverage', cov.total_points, { timezone }, startTime);
                 return {
                     content: [{

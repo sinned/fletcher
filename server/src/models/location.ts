@@ -366,15 +366,21 @@ export const getSignificantPlaces = async (userId: string, timezone: string, opt
 // The bounds of what data exists, so an assistant can be honest about what it
 // can and can't answer. days_with_data counts distinct calendar dates in the
 // user's timezone (deterministic, independent of the DB session timezone).
-export const getDataCoverage = async (userId: string, timezone: string = 'UTC') => {
+// `start` clamps the stats to the assistant's accessible history window so this
+// tool never reports data outside the window it advertises.
+export const getDataCoverage = async (userId: string, timezone: string = 'UTC', options: { start?: Date } = {}) => {
+    const params: any[] = [userId, timezone];
+    let filter = '';
+    let idx = 3;
+    if (options.start) { filter = ` AND timestamp >= $${idx++}`; params.push(options.start); }
     const res = await query(
         `SELECT
             COUNT(*) AS total_points,
             MIN(timestamp) AS earliest,
             MAX(timestamp) AS latest,
             COUNT(DISTINCT (timestamp AT TIME ZONE $2)::date) AS days_with_data
-         FROM locations WHERE user_id = $1`,
-        [userId, timezone]
+         FROM locations WHERE user_id = $1${filter}`,
+        params
     );
     const r = res.rows[0];
     return {
