@@ -10,7 +10,11 @@ struct MCPConnectionView: View {
     @State private var newTokenName = "My Device"
     @State private var newAssistantType = "Claude"
     @State private var generatedToken: MCPTokenResponse?
-    
+
+    // Capability showcase
+    @State private var insights: MCPInsights?
+    @State private var copiedPrompt: String?
+
     let assistantTypes = ["Claude", "ChatGPT", "Cursor", "Other"]
     
     @AppStorage("serverURL") private var serverURL: String = AppConstants.Server.defaultURL
@@ -27,7 +31,45 @@ struct MCPConnectionView: View {
                     Label("Request History", systemImage: "clock.arrow.circlepath")
                 }
             }
-            
+
+            Section {
+                if let ins = insights {
+                    HStack(spacing: 0) {
+                        statPill(value: "\(ins.total_points)", label: "points")
+                        Divider().frame(height: 34)
+                        statPill(value: String(format: "%.1f", ins.distanceLast7DaysKm), label: "km · 7d")
+                        Divider().frame(height: 34)
+                        statPill(value: "\(ins.frequent_place_count)", label: "top places")
+                    }
+                    .padding(.vertical, 4)
+                } else {
+                    HStack { Spacer(); ProgressView(); Spacer() }
+                }
+            } header: {
+                Text("What your assistant can see")
+            } footer: {
+                Text("Live, from your own data. A connected assistant sees this at the precision you choose in Settings.")
+            }
+
+            Section {
+                ForEach(capabilities) { cap in
+                    Button {
+                        UIPasteboard.general.string = cap.prompt
+                        copiedPrompt = cap.prompt
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            if copiedPrompt == cap.prompt { copiedPrompt = nil }
+                        }
+                    } label: {
+                        CapabilityRow(capability: cap, copied: copiedPrompt == cap.prompt)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("Try asking")
+            } footer: {
+                Text("Tap an example to copy it, then paste it to your connected assistant.")
+            }
+
             Section(header: Text("Active Connections")) {
                 if tokens.isEmpty && !isLoading {
                     Button(action: { showGenerateSheet = true }) {
@@ -81,7 +123,10 @@ struct MCPConnectionView: View {
             }
         }
         .navigationTitle("Assistants")
-        .onAppear(perform: loadTokens)
+        .onAppear {
+            loadTokens()
+            loadInsights()
+        }
         .sheet(isPresented: $showGenerateSheet) {
             NavigationView {
                 Form {
@@ -201,6 +246,51 @@ struct MCPConnectionView: View {
             isLoading = false
         }
     }
+
+    private func loadInsights() {
+        Task {
+            insights = try? await APIClient.shared.fetchInsights()
+        }
+    }
+
+    @ViewBuilder
+    private func statPill(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.headline).foregroundColor(.purple)
+            Text(label).font(.caption2).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // Capabilities map 1:1 to the MCP server's tools, annotated with a live
+    // value from the user's own data where one applies.
+    private var capabilities: [Capability] {
+        [
+            Capability(icon: "location.fill", title: "Current location",
+                       prompt: "Where am I right now?", live: latestLive),
+            Capability(icon: "clock.fill", title: "A point in time",
+                       prompt: "Where was I at 3pm yesterday?", live: nil),
+            Capability(icon: "ruler.fill", title: "Distance traveled",
+                       prompt: "How far did I travel this week?",
+                       live: insights.map { "\(String(format: "%.1f", $0.distanceLast7DaysKm)) km in the last 7 days" }),
+            Capability(icon: "star.fill", title: "Frequent places",
+                       prompt: "What places do I visit most often?",
+                       live: insights.map { $0.frequent_place_count > 0 ? "\($0.frequent_place_count) frequent places found" : "No clusters yet" }),
+            Capability(icon: "mappin.and.ellipse", title: "Visits to a place",
+                       prompt: "How often did I go to the gym this month?", live: nil),
+            Capability(icon: "map.fill", title: "Recent route",
+                       prompt: "Trace my route over the last few hours.",
+                       live: insights.map { "\($0.total_points) points tracked" })
+        ]
+    }
+
+    private var latestLive: String? {
+        guard let ts = insights?.latest?.timestamp,
+              let date = ISO8601DateFormatter.fletcherFormatter.date(from: ts) else { return nil }
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return "Last point \(f.localizedString(for: date, relativeTo: Date()))"
+    }
     
     private func generateToken() {
         isLoading = true
@@ -228,5 +318,45 @@ struct MCPConnectionView: View {
         let cleanURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return "\(cleanURL)/sse?token=\(token)"
     }
-    
+
+}
+
+private struct Capability: Identifiable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let prompt: String
+    let live: String?
+}
+
+private struct CapabilityRow: View {
+    let capability: Capability
+    let copied: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: capability.icon)
+                .foregroundColor(.purple)
+                .frame(width: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(capability.title)
+                    .font(.subheadline).fontWeight(.medium)
+                    .foregroundColor(.primary)
+                Text("\u{201C}\(capability.prompt)\u{201D}")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                if let live = capability.live {
+                    Text(live)
+                        .font(.caption2)
+                        .foregroundColor(.purple)
+                }
+            }
+            Spacer()
+            Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                .font(.caption)
+                .foregroundColor(copied ? .green : .secondary)
+        }
+        .contentShape(Rectangle())
+        .padding(.vertical, 2)
+    }
 }

@@ -225,3 +225,74 @@ export const deleteAllLocations = async (userId: string) => {
     );
     return res.rowCount || 0;
 };
+
+// The single recorded point closest in time to `target` (optionally bounded to
+// a window). Powers "where was I at 3pm last Tuesday?"
+export const getLocationAtTime = async (userId: string, target: Date, options: { start?: Date } = {}) => {
+    const params: any[] = [userId, target];
+    let where = `user_id = $1`;
+    let idx = 3;
+    if (options.start) { where += ` AND timestamp >= $${idx++}`; params.push(options.start); }
+    const res = await query(
+        `SELECT
+            ST_Y(point::geometry) as latitude,
+            ST_X(point::geometry) as longitude,
+            accuracy,
+            timestamp,
+            ABS(EXTRACT(EPOCH FROM (timestamp - $2))) as diff_seconds
+         FROM locations
+         WHERE ${where}
+         ORDER BY diff_seconds ASC
+         LIMIT 1`,
+        params
+    );
+    return res.rows[0];
+};
+
+// Total distance traveled (meters) and point count over a window. Distance is a
+// scalar, so no coordinates are exposed. Powers "how far did I go this week?"
+export const getDistanceSummary = async (userId: string, options: { start?: Date, end?: Date } = {}) => {
+    const { start, end } = options;
+    const params: any[] = [userId];
+    let where = `user_id = $1`;
+    let idx = 2;
+    if (start) { where += ` AND timestamp >= $${idx++}`; params.push(start); }
+    if (end) { where += ` AND timestamp <= $${idx++}`; params.push(end); }
+    const res = await query(
+        `WITH ordered AS (
+            SELECT point::geometry AS g,
+                   LAG(point::geometry) OVER (ORDER BY timestamp) AS prev
+            FROM locations WHERE ${where}
+         )
+         SELECT
+            COALESCE(SUM(ST_Distance(g::geography, prev::geography)) FILTER (WHERE prev IS NOT NULL), 0) AS meters,
+            COUNT(*) AS points
+         FROM ordered`,
+        params
+    );
+    const row = res.rows[0];
+    return { meters: parseFloat(row.meters), points: parseInt(row.points, 10) };
+};
+
+// How many recorded points fall within `radiusMeters` of a coordinate, and the
+// first/last time. The caller supplies the coordinate, so no new location is
+// revealed. Powers "how often did I go to the gym?"
+export const getPlaceVisits = async (userId: string, centerLat: number, centerLon: number, radiusMeters: number, options: { start?: Date, end?: Date } = {}) => {
+    const { start, end } = options;
+    const params: any[] = [userId, centerLon, centerLat, radiusMeters];
+    let where = `user_id = $1 AND ST_DWithin(point::geography, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography, $4)`;
+    let idx = 5;
+    if (start) { where += ` AND timestamp >= $${idx++}`; params.push(start); }
+    if (end) { where += ` AND timestamp <= $${idx++}`; params.push(end); }
+    const res = await query(
+        `SELECT COUNT(*) as visit_count, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
+         FROM locations WHERE ${where}`,
+        params
+    );
+    const row = res.rows[0];
+    return {
+        visit_count: parseInt(row.visit_count, 10),
+        first_seen: row.first_seen,
+        last_seen: row.last_seen
+    };
+};
