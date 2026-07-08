@@ -296,3 +296,91 @@ export const getPlaceVisits = async (userId: string, centerLat: number, centerLo
         last_seen: row.last_seen
     };
 };
+
+// One-shot rollup for a day or period: point count, active window, distance,
+// and how many distinct ~100m cells were visited. Powers "summarize my day".
+export const getDaySummary = async (userId: string, options: { start: Date, end: Date }) => {
+    const res = await query(
+        `WITH pts AS (
+            SELECT point::geometry AS g, timestamp,
+                   LAG(point::geometry) OVER (ORDER BY timestamp) AS prev
+            FROM locations
+            WHERE user_id = $1 AND timestamp >= $2 AND timestamp <= $3
+         )
+         SELECT
+            COUNT(*) AS points,
+            MIN(timestamp) AS first_seen,
+            MAX(timestamp) AS last_seen,
+            COALESCE(SUM(ST_Distance(g::geography, prev::geography)) FILTER (WHERE prev IS NOT NULL), 0) AS meters,
+            COUNT(DISTINCT ST_SnapToGrid(g, 0.001)) AS distinct_places
+         FROM pts`,
+        [userId, options.start, options.end]
+    );
+    const r = res.rows[0];
+    return {
+        points: parseInt(r.points, 10),
+        first_seen: r.first_seen,
+        last_seen: r.last_seen,
+        meters: parseFloat(r.meters),
+        distinct_places: parseInt(r.distinct_places, 10)
+    };
+};
+
+// Infer likely home (dominant nighttime cluster) and work (dominant weekday
+// daytime cluster) in the user's timezone. Returns the ~100m grid cell centers.
+// Home and work can coincide for remote workers.
+export const getSignificantPlaces = async (userId: string, timezone: string, options: { start?: Date } = {}) => {
+    const params: any[] = [userId, timezone];
+    let timeFilter = '';
+    let idx = 3;
+    if (options.start) { timeFilter = ` AND timestamp >= $${idx++}`; params.push(options.start); }
+
+    const homeRes = await query(
+        `SELECT ST_Y(cell) AS lat, ST_X(cell) AS lon, cnt FROM (
+            SELECT ST_SnapToGrid(point::geometry, 0.001) AS cell, COUNT(*) AS cnt
+            FROM locations
+            WHERE user_id = $1${timeFilter}
+              AND (EXTRACT(HOUR FROM timestamp AT TIME ZONE $2) >= 22
+                   OR EXTRACT(HOUR FROM timestamp AT TIME ZONE $2) < 6)
+            GROUP BY cell ORDER BY cnt DESC LIMIT 1
+         ) h`,
+        params
+    );
+    const workRes = await query(
+        `SELECT ST_Y(cell) AS lat, ST_X(cell) AS lon, cnt FROM (
+            SELECT ST_SnapToGrid(point::geometry, 0.001) AS cell, COUNT(*) AS cnt
+            FROM locations
+            WHERE user_id = $1${timeFilter}
+              AND EXTRACT(DOW FROM timestamp AT TIME ZONE $2) BETWEEN 1 AND 5
+              AND EXTRACT(HOUR FROM timestamp AT TIME ZONE $2) BETWEEN 9 AND 17
+            GROUP BY cell ORDER BY cnt DESC LIMIT 1
+         ) w`,
+        params
+    );
+    const toPlace = (rows: any[]) => rows[0]
+        ? { latitude: rows[0].lat, longitude: rows[0].lon, sample_count: parseInt(rows[0].cnt, 10) }
+        : null;
+    return { home: toPlace(homeRes.rows), work: toPlace(workRes.rows) };
+};
+
+// The bounds of what data exists, so an assistant can be honest about what it
+// can and can't answer. days_with_data counts distinct calendar dates in the
+// user's timezone (deterministic, independent of the DB session timezone).
+export const getDataCoverage = async (userId: string, timezone: string = 'UTC') => {
+    const res = await query(
+        `SELECT
+            COUNT(*) AS total_points,
+            MIN(timestamp) AS earliest,
+            MAX(timestamp) AS latest,
+            COUNT(DISTINCT (timestamp AT TIME ZONE $2)::date) AS days_with_data
+         FROM locations WHERE user_id = $1`,
+        [userId, timezone]
+    );
+    const r = res.rows[0];
+    return {
+        total_points: parseInt(r.total_points, 10),
+        earliest: r.earliest,
+        latest: r.latest,
+        days_with_data: parseInt(r.days_with_data, 10)
+    };
+};
