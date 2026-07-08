@@ -280,7 +280,13 @@ struct MCPConnectionView: View {
                        prompt: "How often did I go to the gym this month?", live: nil),
             Capability(icon: "map.fill", title: "Recent route",
                        prompt: "Trace my route over the last few hours.",
-                       live: insights.map { "\($0.total_points) points tracked" })
+                       live: insights.map { "\($0.total_points) points tracked" }),
+            Capability(icon: "sun.max.fill", title: "Day summary",
+                       prompt: "Summarize my day yesterday.", live: nil),
+            Capability(icon: "house.fill", title: "Home & work",
+                       prompt: "Where are my home and work?", live: nil),
+            Capability(icon: "arrow.triangle.turn.up.right.diamond.fill", title: "Trips",
+                       prompt: "What trips did I take today?", live: nil)
         ]
     }
 
