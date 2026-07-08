@@ -22,6 +22,17 @@ function applyPrecision(lat: number, lon: number, level: string): [number, numbe
     return [lat, lon];
 }
 
+// Minimum radius for caller-supplied radius searches, matching the coordinate
+// rounding of each precision level. Without this, a low/medium-precision token
+// could probe a grid of coordinates with a tiny radius and use the match
+// counts to reconstruct exact positions the coordinate tools would only return
+// rounded — a precision bypass.
+function precisionFloorMeters(level: string): number {
+    if (level === 'low') return 1500;    // ~1km rounding cell
+    if (level === 'medium') return 150;  // ~100m rounding cell
+    return 0;                            // high: no floor
+}
+
 async function logAccess(userId: string, assistantType: string, endpoint: string, count: number, params?: any, startTime?: number) {
     const responseTimeMs = startTime ? Date.now() - startTime : undefined;
     await logMCPRequest(userId, assistantType, endpoint, count, params, responseTimeMs);
@@ -251,6 +262,9 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                 // Radius filtering or Standard History
                 let history: any[] = [];
                 if (center_lat !== undefined && center_lon !== undefined && radius_meters !== undefined) {
+                    // Enforce the precision floor so a coarse-precision token can't
+                    // probe finer than it's allowed to resolve via a tiny radius.
+                    radius_meters = Math.max(radius_meters, precisionFloorMeters(precision));
                     history = await getLocationHistoryWithRadius(userId, center_lat, center_lon, radius_meters, { start, end, limit, offset });
 
                     // Count is harder for radius without separate query, simplistic approach:
@@ -570,12 +584,14 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
             },
             async ({ center_lat, center_lon, radius_meters = 150, days = 30, timezone = 'America/Los_Angeles' }) => {
                 await validateTokenForRequest();
-                const { historyDays } = await getLiveSettings();
+                const { historyDays, precision } = await getLiveSettings();
                 if (!IANAZone.isValidZone(timezone)) {
                     return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
                 }
                 if (days > historyDays) days = historyDays;
-                if (radius_meters < 1) radius_meters = 1;
+                // Enforce the precision floor so a coarse-precision token can't
+                // probe finer than it's allowed to resolve.
+                radius_meters = Math.max(radius_meters, precisionFloorMeters(precision));
                 const start = DateTime.now().minus({ days }).toJSDate();
 
                 const startTime = Date.now();
