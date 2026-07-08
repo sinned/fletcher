@@ -1,6 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [1.7.1] - 2026-07-08
+### Added
+- **MCP**: Four more assistant tools (server 2.3.0): `get_day_summary` ("summarize my day" — distance, active window, distinct places in one call), `get_significant_places` (infers home from nighttime clusters and work from weekday-daytime clusters), `get_trips` (segments the track into distinct trips at stationary gaps, with duration/distance/endpoints), and `get_data_coverage` (what history exists + the precision/window in effect, so the assistant can be honest about what it can answer). All enforce precision, the history window, the enabled flag, and input validation. Verified against the real schema (2026-07-08)
+- **iOS/Assistants tab**: Added example prompts for the new tools (day summary, home & work, trips) to the capability showcase (2026-07-08)
 
 ## [1.7.0] - 2026-07-07
 ### Added

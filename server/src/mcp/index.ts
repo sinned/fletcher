@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
-import { getLatestLocation, getLocationHistory, getRecentLocations, getLocationHistoryWithRadius, getFrequentLocations, getRecentTrajectory, getTotalLocationCount, getLocationAtTime, getDistanceSummary, getPlaceVisits } from '../models/location';
+import { getLatestLocation, getLocationHistory, getRecentLocations, getLocationHistoryWithRadius, getFrequentLocations, getRecentTrajectory, getTotalLocationCount, getLocationAtTime, getDistanceSummary, getPlaceVisits, getDaySummary, getSignificantPlaces, getDataCoverage } from '../models/location';
 import { validateMCPToken } from '../models/auth';
 import { getPrivacySettings } from '../models/user';
 import { logMCPRequest } from '../models/access_log';
@@ -31,6 +31,17 @@ function precisionFloorMeters(level: string): number {
     if (level === 'low') return 1500;    // ~1km rounding cell
     if (level === 'medium') return 150;  // ~100m rounding cell
     return 0;                            // high: no floor
+}
+
+// Great-circle distance in meters between two lat/lon points (used for
+// client-side trip segmentation).
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371000;
+    const toRad = (d: number) => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 async function logAccess(userId: string, assistantType: string, endpoint: string, count: number, params?: any, startTime?: number) {
@@ -606,6 +617,213 @@ export const mcpServerPlugin = async (fastify: FastifyInstance) => {
                             first_seen: visits.first_seen ? formatWithTimezone(visits.first_seen, timezone).timestamp : null,
                             last_seen: visits.last_seen ? formatWithTimezone(visits.last_seen, timezone).timestamp : null,
                             metadata: { center: [center_lat, center_lon], radius_meters, days, timezone }
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: Summarize a day (or period)
+        mcp.tool('get_day_summary',
+            {
+                date: z.string().optional().describe("Day to summarize (YYYY-MM-DD). Defaults to today. Ignored if start_date/end_date given."),
+                start_date: z.string().optional().describe("Range start (ISO 8601). Use with end_date for a multi-day summary."),
+                end_date: z.string().optional().describe("Range end (ISO 8601)."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ date, start_date, end_date, timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                let start: Date, end: Date;
+                if (start_date || end_date) {
+                    const s = DateTime.fromISO(start_date || date || '', { zone: timezone });
+                    const e = DateTime.fromISO(end_date || start_date || date || '', { zone: timezone });
+                    if (!s.isValid || !e.isValid) return { content: [{ type: "text", text: "Invalid date range." }] };
+                    start = s.startOf('day').toJSDate();
+                    end = e.endOf('day').toJSDate();
+                } else {
+                    const d = date ? DateTime.fromISO(date, { zone: timezone }) : DateTime.now().setZone(timezone);
+                    if (!d.isValid) return { content: [{ type: "text", text: `Invalid date: ${date}.` }] };
+                    start = d.startOf('day').toJSDate();
+                    end = d.endOf('day').toJSDate();
+                }
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
+                if (start < cutoff) start = cutoff;
+
+                const startTime = Date.now();
+                const s = await getDaySummary(userId, { start, end });
+                await logAccess(userId, assistantType, 'get_day_summary', s.points, { start, end, timezone }, startTime);
+
+                const active = (s.first_seen && s.last_seen)
+                    ? Math.round((new Date(s.last_seen).getTime() - new Date(s.first_seen).getTime()) / 60000)
+                    : 0;
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            range: { start: start.toISOString(), end: end.toISOString(), timezone },
+                            points: s.points,
+                            distance_km: Math.round(s.meters / 100) / 10,
+                            distinct_places: s.distinct_places,
+                            first_movement: s.first_seen ? formatWithTimezone(s.first_seen, timezone).timestamp : null,
+                            last_movement: s.last_seen ? formatWithTimezone(s.last_seen, timezone).timestamp : null,
+                            active_minutes: active
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: Infer home and work
+        mcp.tool('get_significant_places',
+            {
+                days: z.number().optional().default(30).describe("Lookback period in days."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ days = 30, timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { precision, historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                if (days > historyDays) days = historyDays;
+                const start = DateTime.now().minus({ days }).toJSDate();
+
+                const startTime = Date.now();
+                const { home, work } = await getSignificantPlaces(userId, timezone, { start });
+                await logAccess(userId, assistantType, 'get_significant_places', (home ? 1 : 0) + (work ? 1 : 0), { days, timezone }, startTime);
+
+                const fmt = (p: any, label: string) => {
+                    if (!p) return null;
+                    const [lat, lon] = applyPrecision(p.latitude, p.longitude, precision);
+                    return { type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] }, properties: { label, sample_count: p.sample_count } };
+                };
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            home: fmt(home, 'home'),
+                            work: fmt(work, 'work'),
+                            note: "Inferred from nighttime (home) and weekday-daytime (work) clusters. May coincide for remote workers.",
+                            metadata: { days, timezone }
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: Segment the track into trips
+        mcp.tool('get_trips',
+            {
+                start_date: z.string().optional().describe("Range start (ISO 8601). Defaults to the start of the accessible window."),
+                end_date: z.string().optional().describe("Range end (ISO 8601). A bare date counts the whole day."),
+                min_gap_minutes: z.number().optional().default(20).describe("A stationary gap longer than this splits trips (default 20)."),
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ start_date, end_date, min_gap_minutes = 20, timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { precision, historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                const dateOnly = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s.trim());
+                let start: Date | undefined;
+                let end: Date | undefined;
+                if (start_date) {
+                    const p = DateTime.fromISO(start_date, { zone: timezone });
+                    if (!p.isValid) return { content: [{ type: "text", text: `Invalid start_date: ${start_date}.` }] };
+                    start = p.toJSDate();
+                }
+                if (end_date) {
+                    const p = DateTime.fromISO(end_date, { zone: timezone });
+                    if (!p.isValid) return { content: [{ type: "text", text: `Invalid end_date: ${end_date}.` }] };
+                    end = (dateOnly(end_date) ? p.endOf('day') : p).toJSDate();
+                }
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
+                if (!start || start < cutoff) start = cutoff;
+                if (min_gap_minutes < 1) min_gap_minutes = 1;
+
+                const startTime = Date.now();
+                const points = await getLocationHistory(userId, { start, end, limit: 5000 });
+
+                // Segment into trips at stationary gaps; Fletcher records on
+                // movement, so a long gap between points means the user stayed put.
+                const gapMs = min_gap_minutes * 60 * 1000;
+                const trips: any[] = [];
+                let seg: any[] = [];
+                const flush = () => {
+                    if (seg.length < 2) { seg = []; return; }
+                    let meters = 0;
+                    for (let i = 1; i < seg.length; i++) {
+                        meters += haversineMeters(seg[i - 1].latitude, seg[i - 1].longitude, seg[i].latitude, seg[i].longitude);
+                    }
+                    if (meters < 100) { seg = []; return; } // drop trivial jitter
+                    const first = seg[0], last = seg[seg.length - 1];
+                    const [slat, slon] = applyPrecision(first.latitude, first.longitude, precision);
+                    const [elat, elon] = applyPrecision(last.latitude, last.longitude, precision);
+                    trips.push({
+                        start_time: formatWithTimezone(first.timestamp, timezone).timestamp,
+                        end_time: formatWithTimezone(last.timestamp, timezone).timestamp,
+                        duration_minutes: Math.round((new Date(last.timestamp).getTime() - new Date(first.timestamp).getTime()) / 60000),
+                        distance_km: Math.round(meters / 100) / 10,
+                        start: [slon, slat],
+                        end: [elon, elat],
+                        points: seg.length
+                    });
+                    seg = [];
+                };
+                for (const p of points) {
+                    if (seg.length && (new Date(p.timestamp).getTime() - new Date(seg[seg.length - 1].timestamp).getTime()) > gapMs) {
+                        flush();
+                    }
+                    seg.push(p);
+                }
+                flush();
+
+                await logAccess(userId, assistantType, 'get_trips', trips.length, { start, end, timezone }, startTime);
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            trips,
+                            trip_count: trips.length,
+                            metadata: { start: start.toISOString(), end: end?.toISOString(), min_gap_minutes, timezone }
+                        })
+                    }]
+                };
+            }
+        );
+
+        // Tool: What data is available?
+        mcp.tool('get_data_coverage',
+            {
+                timezone: z.string().optional().default('America/Los_Angeles').describe("IANA timezone identifier. Defaults to America/Los_Angeles.")
+            },
+            async ({ timezone = 'America/Los_Angeles' }) => {
+                await validateTokenForRequest();
+                const { historyDays } = await getLiveSettings();
+                if (!IANAZone.isValidZone(timezone)) {
+                    return { content: [{ type: "text", text: `Invalid timezone: ${timezone}.` }] };
+                }
+                // Clamp to the accessible window so coverage never reports data
+                // outside the history the assistant is allowed to read.
+                const cutoff = DateTime.now().minus({ days: historyDays }).toJSDate();
+                const startTime = Date.now();
+                const cov = await getDataCoverage(userId, timezone, { start: cutoff });
+                await logAccess(userId, assistantType, 'get_data_coverage', cov.total_points, { timezone }, startTime);
+                return {
+                    content: [{
+                        type: "text",
+                        text: JSON.stringify({
+                            total_points: cov.total_points,
+                            earliest: cov.earliest ? formatWithTimezone(cov.earliest, timezone).timestamp : null,
+                            latest: cov.latest ? formatWithTimezone(cov.latest, timezone).timestamp : null,
+                            days_with_data: cov.days_with_data,
+                            history_access_days: historyDays,
+                            note: `An assistant can only read the most recent ${historyDays} days at the precision set by the user.`
                         })
                     }]
                 };
