@@ -17,10 +17,13 @@ class BackgroundLocationService: NSObject, ObservableObject, CLLocationManagerDe
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters // Medium precision
-        locationManager.allowsBackgroundLocationUpdates = true
+        // Fletcher uses significant-change + visit monitoring (see startTracking),
+        // which relaunch the app in the background on their own. They do NOT need
+        // the `location` UIBackgroundMode, and setting allowsBackgroundLocationUpdates
+        // without that mode throws — so it's intentionally not set here.
         locationManager.pausesLocationUpdatesAutomatically = true
         locationManager.distanceFilter = 100 // Update every 100 meters
-        
+
         setupSyncTimer()
     }
     
